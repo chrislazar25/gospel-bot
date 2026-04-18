@@ -481,6 +481,9 @@ triggerServer.listen(CONFIG.TRIGGER_PORT, '127.0.0.1', () => {
 // Scan QR on dad's phone, see all group names + IDs, copy the right one
 if (process.argv.includes('--list-groups')) {
   client.on('ready', async () => {
+    // Wait for chats to fully load on slow/low RAM machines
+    log('info', 'Client ready — waiting 10s for chats to load...');
+    await new Promise(r => setTimeout(r, 10000));
     const chats  = await client.getChats();
     const groups = chats.filter(c => c.isGroup);
     console.log('\n=== YOUR WHATSAPP GROUPS ===');
