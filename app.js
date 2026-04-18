@@ -313,7 +313,23 @@ async function flushQueue() {
 // ─────────────────────────────────────────────
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: CONFIG.SESSION_DIR }),
-  puppeteer: { args: ['--no-sandbox', '--disable-setuid-sandbox'] },
+  authTimeoutMs: 120000,
+  puppeteer: {
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process',
+    ]
+  },
+});
+
+// Handle unhandled rejections gracefully
+process.on('unhandledRejection', (reason) => {
+  log('error', 'Unhandled rejection:', reason?.message || reason);
 });
 
 client.on('qr', async (qr) => {
