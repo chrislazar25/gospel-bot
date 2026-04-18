@@ -5,9 +5,9 @@
 **Daily gospel reflections for the family group — on time, with grace.**
 
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-3c873a?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![WhatsApp](https://img.shields.io/badge/WhatsApp-Web.js-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://github.com/pedroslopez/whatsapp-web.js)
+[![Green API](https://img.shields.io/badge/WhatsApp-Green%20API-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://green-api.com/)
 
-*Matches today’s Catholic lectionary to a personal archive of messages, then sends the best one — with email previews, retries, and a quiet watchdog.*
+*Matches today's Catholic lectionary to a personal archive of messages, then sends the best one — with email previews, retries, and a quiet watchdog.*
 
 <br/>
 
@@ -23,7 +23,7 @@
 
 ## Why it exists
 
-Years of thoughtful **“Gospel Msg”** notes live in a WhatsApp archive. This bot keeps that voice alive for the group: it pulls **today’s gospel** from the [Catholic Readings API](https://github.com/cpbjr/catholic-readings-api), finds archive entries whose citations fall inside that reading, picks the strongest match, and **delivers it automatically** — with a safety net if anything goes wrong.
+Years of thoughtful **"Gospel Msg"** notes live in a WhatsApp archive. This bot keeps that voice alive for the group: it pulls **today's gospel** from the [Catholic Readings API](https://github.com/cpbjr/catholic-readings-api), finds archive entries whose citations fall inside that reading, picks the strongest match, and **delivers it automatically** — with a safety net if anything goes wrong.
 
 ---
 
@@ -33,11 +33,11 @@ All schedules use **`Asia/Kolkata` (IST)**.
 
 | When | What happens |
 |------|----------------|
-| **5:00 PM** | Tomorrow’s message is emailed to the preview inbox (so someone can forward manually if needed). |
-| **12:30 AM** | The chosen message goes to the configured WhatsApp group (with retries). |
+| **5:00 PM** | Tomorrow's message is emailed to the preview inbox so someone can forward manually if needed. |
+| **12:30 AM** | The chosen message goes to the configured WhatsApp group via Green API (with retries). |
 | **1:00 AM** | Watchdog: if nothing was logged as sent, the bot tries again and alerts by email. |
 
-If WhatsApp drops, messages can be **queued** and flushed when the client reconnects. A fresh **QR** triggers an email with a scannable image for re-linking.
+If all retries fail, the message is **queued** and flushed on the next successful send. The 5 PM preview email to mom serves as the final manual fallback.
 
 ---
 
@@ -52,11 +52,11 @@ flowchart LR
   E --> F{Match found?}
   F -->|Yes| G[Build message from archive]
   F -->|No| H[bible-api.com KJV fallback]
-  G --> I[WhatsApp group]
+  G --> I[Green API → WhatsApp group]
   H --> I
 ```
 
-`gospel_matcher.js` normalizes book names (e.g. **JH**, **LK**, **MT**, **MK**) and handles both API-style references and Dad’s citation format.
+`gospel_matcher.js` normalizes book names (e.g. **JH**, **LK**, **MT**, **MK**) and handles both API-style references and the archive's citation format — including multi-chapter readings like Good Friday (`John 18:1–19:42`) and non-standard formats like `JH(19-28-30)`.
 
 ---
 
@@ -64,10 +64,11 @@ flowchart LR
 
 | Piece | Role |
 |-------|------|
-| [whatsapp-web.js](https://github.com/pedroslopez/whatsapp-web.js) | Linked-device session, group send |
+| [Green API](https://green-api.com/) | WhatsApp session and group send via REST |
 | [node-cron](https://www.npmjs.com/package/node-cron) | IST scheduling |
-| [nodemailer](https://nodemailer.com/) | Gmail alerts & previews |
-| [qrcode](https://www.npmjs.com/package/qrcode) | QR image when re-auth is needed |
+| [nodemailer](https://nodemailer.com/) | Gmail alerts and previews |
+
+No headless browser. No Puppeteer. No session files to manage.
 
 ---
 
@@ -75,9 +76,9 @@ flowchart LR
 
 ### Prerequisites
 
-- **Node.js 18+** (uses native `fetch` in the matcher)
+- **Node.js 18+**
+- A **Green API** account (free Developer plan at [green-api.com](https://green-api.com)) — scan QR once on their dashboard, never again
 - A **Gmail** account with an [App Password](https://myaccount.google.com/apppasswords) for SMTP
-- WhatsApp on a phone you can use for **Linked devices**
 
 ### Install
 
@@ -89,55 +90,64 @@ npm install
 
 ### Environment
 
-Set these on the process (shell, **PM2** `ecosystem.config.cjs`, Windows **System Properties → Environment Variables**, etc.). The app reads `process.env.*` only — it does not load a `.env` file unless you add something like `dotenv` yourself. Never commit secrets; `.env` is listed in `.gitignore` for local convenience if you use a loader.
-
 | Variable | Description |
 |----------|-------------|
-| `GROUP_ID` | WhatsApp group id, e.g. `1234567890-1234567890@g.us` |
+| `GREEN_API_ID` | Your Green API instance ID |
+| `GREEN_API_TOKEN` | Your Green API token |
+| `GROUP_ID` | WhatsApp group ID e.g. `120363XXXXXX@g.us` — find it in Green API dashboard → Contacts |
 | `EMAIL_USER` | Gmail address used to send mail |
 | `EMAIL_PASS` | Gmail App Password |
-| `ALERT_EMAIL` | Where operational emails go |
-| `PREVIEW_EMAIL` | Where the 5 PM “tomorrow” preview goes |
+| `ALERT_EMAIL` | Where operational alerts go (your email) |
+| `PREVIEW_EMAIL` | Where the 5 PM preview goes (mom's email) |
 | `TRIGGER_PORT` | Optional. Local HTTP port (default `3000`) |
 
-### First run: find the group id
-
-```bash
-npm run list-groups
-```
-
-Scan the QR on the linked phone, then copy the id next to the right group into `GROUP_ID`.
-
-### Run normally
+### Run
 
 ```bash
 npm start
 ```
 
-For production, run under **PM2** (or similar) so it survives restarts — the comments in `app.js` mention `pm2 logs gospel-bot`.
+For production, run under **PM2** so it survives reboots:
+
+```bash
+pm2 start app.js --name gospel-bot
+pm2 startup && pm2 save
+```
 
 ---
 
-## Useful commands
+## Manual triggers
 
-| Command | Purpose |
-|---------|---------|
-| `npm start` | Start the bot (cron + WhatsApp + local trigger server) |
-| `npm run list-groups` | Print group names and ids after QR login |
-| `node app.js --trigger-now` | Send today’s message immediately |
-| `node app.js --trigger-now --date=YYYY-MM-DD` | Send for a specific date |
-| `node app.js --preview-now` | Send the preview email now |
-| `node gospel_matcher.js` | Matcher self-test / debug output |
-| `node test.js today` | Full-chain validation for today |
-| `node test.js 2026-04-17` | Validate one or more dates |
-
-### Local HTTP triggers (binds to `127.0.0.1`)
+### CLI
 
 ```bash
-curl http://localhost:3000/status
-curl http://localhost:3000/trigger
-curl http://localhost:3000/preview
+node app.js --trigger-now                        # send today's message now
+node app.js --trigger-now --date=2026-04-17      # send for a specific date
+node app.js --preview-now                        # send preview email to mom now
 ```
+
+### HTTP (bot must be running via pm2)
+
+```bash
+curl http://localhost:3000/trigger
+curl "http://localhost:3000/trigger?date=2026-04-17"
+curl http://localhost:3000/preview
+curl http://localhost:3000/status
+```
+
+---
+
+## Validation
+
+Test the full chain locally before deploying — API call, parsing, archive matching, and final message:
+
+```bash
+node test.js today
+node test.js 2026-04-17
+node test.js 2026-04-17 2026-04-18 2026-04-19    # multiple dates at once
+```
+
+Shows the raw API response, parsed reference, all archive matches with scores, and the final message in a box. Run this with dad to validate a week of dates before going live.
 
 ---
 
@@ -145,25 +155,25 @@ curl http://localhost:3000/preview
 
 | File | Notes |
 |------|--------|
-| `gospel_messages.json` | Parsed archive of gospel messages (metadata + `messages` array). Ship this with the bot. |
-| `sent.log.json` | Rolling log of sends (gitignored). |
-| `pending.json` | Queue when sends fail after retries (gitignored). |
-| `session/` | WhatsApp session data (gitignored). |
+| `gospel_messages.json` | Parsed archive — ship this with the bot |
+| `sent.log.json` | Rolling 90-day send log (gitignored) |
+| `pending.json` | Queue for failed sends (gitignored) |
 
-### Rebuilding the archive from chat export
-
-`parse_gospel.js` is a **one-off pipeline**; paths inside it point at a specific export layout. Adjust `INPUT_FILE` / `OUTPUT_FILE` (and `SENDER_NAME`) for your machine, then:
+### Rebuilding the archive from a fresh WhatsApp export
 
 ```bash
-npm run parse
+node parse_gospel.js    # reads _chat.txt, writes gospel_messages.json
 ```
+
+Update `INPUT_FILE` in `parse_gospel.js` to point at your export path.
 
 ---
 
 ## Credits
 
-- Daily readings: [cpbjr/catholic-readings-api](https://github.com/cpbjr/catholic-readings-api) (hosted JSON)
+- Daily readings: [cpbjr/catholic-readings-api](https://github.com/cpbjr/catholic-readings-api)
 - Scripture fallback: [bible-api.com](https://bible-api.com/)
+- WhatsApp delivery: [Green API](https://green-api.com/)
 
 ---
 
