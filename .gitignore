@@ -1,0 +1,5 @@
+node_modules/
+session/
+sent.log.json
+pending.json
+.env

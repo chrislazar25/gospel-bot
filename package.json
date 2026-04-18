@@ -1,0 +1,17 @@
+{
+  "name": "gospel-bot",
+  "version": "1.0.0",
+  "description": "Daily gospel message sender for WhatsApp group",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "list-groups": "node app.js --list-groups",
+    "parse": "node parse_gospel.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.23.0",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.9",
+    "qrcode": "^1.5.3"
+  }
+}
