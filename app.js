@@ -322,7 +322,6 @@ const client = new Client({
       '--disable-gpu',
       '--no-first-run',
       '--no-zygote',
-      '--single-process',
     ]
   },
 });
@@ -483,7 +482,7 @@ if (process.argv.includes('--list-groups')) {
   client.on('ready', async () => {
     // Wait for chats to fully load on slow/low RAM machines
     log('info', 'Client ready — waiting 10s for chats to load...');
-    await new Promise(r => setTimeout(r, 10000));
+    await new Promise(r => setTimeout(r, 20000));
     const chats  = await client.getChats();
     const groups = chats.filter(c => c.isGroup);
     console.log('\n=== YOUR WHATSAPP GROUPS ===');
