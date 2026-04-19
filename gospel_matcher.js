@@ -185,17 +185,29 @@ async function fetchTodaysGospel(date) {
   const year = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
-  const url = `https://cpbjr.github.io/catholic-readings-api/readings/${year}/${mm}-${dd}.json`;
 
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`API returned ${res.status} for ${url}`);
-  const data = await res.json();
+  // Fetch both endpoints in parallel — readings for gospel ref, calendar for celebration name
+  const readingsUrl  = `https://cpbjr.github.io/catholic-readings-api/readings/${year}/${mm}-${dd}.json`;
+  const calendarUrl  = `https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/${year}/${mm}-${dd}.json`;
+
+  const [readingsRes, calendarRes] = await Promise.all([
+    fetch(readingsUrl),
+    fetch(calendarUrl),
+  ]);
+
+  if (!readingsRes.ok) throw new Error(`Readings API returned ${readingsRes.status}`);
+
+  const readings = await readingsRes.json();
+  // Calendar endpoint may not exist for every date — fail gracefully
+  const calendar = calendarRes.ok ? await calendarRes.json() : null;
+
   return {
-    date: data.date,
-    season: data.season,
-    gospelRaw: data.readings?.gospel,
-    apiRef: parseApiRef(data.readings?.gospel),
-    fullData: data,
+    date:        readings.date,
+    season:      readings.season,
+    celebration: calendar?.celebration || null,
+    gospelRaw:   readings.readings?.gospel,
+    apiRef:      parseApiRef(readings.readings?.gospel),
+    fullData:    readings,
   };
 }
 

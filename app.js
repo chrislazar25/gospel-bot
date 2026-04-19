@@ -150,13 +150,10 @@ async function fetchBibleApiFallback(gospelRef) {
 // GET MESSAGE FOR A DATE
 // ─────────────────────────────────────────────
 async function getMessageForDate(dateStr) {
-  let date;
-  if (dateStr) {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    date = new Date(y, m - 1, d);
-  } else {
-    date = new Date();
-  }
+  // Always resolve to IST date — server is UTC so new Date() alone is wrong
+  const istDateStr = dateStr || new Date().toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+  const [y, m, d] = istDateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
 
   const result = await getTodaysMessage(date);
 
@@ -179,7 +176,8 @@ function getSentLog() {
 
 function markSent(entry) {
   const entries = getSentLog();
-  entries.push({ ...entry, sentAt: new Date().toISOString() });
+  const istDate = new Date().toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+  entries.push({ ...entry, sentAt: new Date().toISOString(), istDate });
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 90);
   fs.writeFileSync(CONFIG.SENT_LOG, JSON.stringify(
@@ -189,7 +187,7 @@ function markSent(entry) {
 
 function alreadySentToday() {
   const today = new Date().toLocaleDateString('en-CA', { timeZone: TIMEZONE });
-  return getSentLog().some(e => e.sentAt?.startsWith(today));
+  return getSentLog().some(e => e.istDate === today || e.sentAt?.startsWith(today));
 }
 
 // ─────────────────────────────────────────────
