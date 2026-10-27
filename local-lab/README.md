@@ -32,6 +32,8 @@ node local-lab/verify.mjs all
 
 This creates a separate stack with random ports and an empty disposable volume. It exercises the real API against Postgres and the fake provider, keeps reports in `local-lab/evidence/`, and removes its own stack. It does not reset your developer stack. For the staged launch, doctor, drive, and cleanup workflow, use [verify-gospel-lab](../.cursor/skills/verify-gospel-lab/SKILL.md).
 
+Run `node local-lab/verify-lifecycle.mjs` to check that a second launch preserves an unfinished run and repeated cleanup preserves its evidence.
+
 The checks cover competing replicas, rejection and retry, accepted requests with lost responses, timeouts, malformed responses, generic server errors, failed database bookkeeping after acceptance, delayed receipts, database-only restarts, and IST midnight.
 
 ## Interpret the result

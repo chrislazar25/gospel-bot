@@ -18,6 +18,8 @@ node local-lab/verify.mjs launch
 
 The helper builds the real image, starts a unique Compose project with random loopback ports and an empty database volume, and initializes the schema and synthetic content. Ready means both application replicas and the fake provider pass health checks against the initialized database. Read the assigned URLs and evidence directory from `$LAB_RUN_STATE`. Do not assume ports 3101 through 3103 belong to this session.
 
+An unfinished selected run blocks another launch. Clean it up first, or select a different state path for an independent session.
+
 ## Doctor
 
 ```sh
@@ -53,8 +55,12 @@ After a successful drive, confirm that the report still contains all checks and 
 
 Cleanup removes only the helper's unique Compose project and disposable volume. It preserves the report and logs. Do not run a global Docker prune or remove the developer's normal Compose volume. If cleanup fails, report the exact project and failure before another attempt.
 
+Repeating cleanup on a cleaned run leaves its saved logs, report, and state unchanged.
+
 ## Helpers
 
 `node local-lab/verify.mjs all` runs an isolated launch, drive, and cleanup in one process. Use the staged commands above to prove this skill itself. Concurrent sessions require distinct `LAB_RUN_STATE` paths. All paths and ports are local. This verifies a local stand-in only. GCP identities, secrets, scheduler, real provider receipt correlation, editorial approval, and production cutover remain unverified.
+
+Run `node local-lab/verify-lifecycle.mjs` to check launch refusal, ownership preservation, repeated cleanup, and reuse after cleanup through the real CLI and Docker. Its logs and report stay in `local-lab/evidence/lifecycle-*/`.
 
 Use `pstack:maintain-verification-skill` when routes or behavior change to keep this map aligned.
