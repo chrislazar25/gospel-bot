@@ -50,13 +50,7 @@ jobs:
         run: scripts/cloud/build.sh
       - name: Verify and download tested staging digest
         if: inputs.environment == 'production' && !inputs.build_only
-        run: |
-          [[ "$STAGING_RUN" =~ ^[0-9]+$ ]]
-          gh api "repos/$GH_REPO/actions/runs/$STAGING_RUN" > run.json
-          jq -e --arg sha "$GITHUB_SHA" '.conclusion == "success" and .event == "workflow_dispatch" and .head_branch == "master" and .head_sha == $sha and .path == ".github/workflows/release.yml"' run.json
-          gh run download "$STAGING_RUN" --repo "$GH_REPO" --name tested-staging-image --dir promotion
-          [[ $(cat promotion/environment.txt) == staging ]]
-          cp promotion/image.txt image.txt
+        run: scripts/cloud/promote.sh
       - name: Publish initial candidate evidence
         if: inputs.build_only
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -64,8 +58,26 @@ jobs:
           name: candidate-image
           path: image.txt
           retention-days: 30
-      - run: scripts/cloud/release.sh
+      - name: Deploy release
+        id: deploy
+        run: scripts/cloud/release.sh
         if: ${{ !inputs.build_only }}
+      - name: Authenticate status smoke check
+        id: smoke-auth
+        if: ${{ !inputs.build_only }}
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: gospel-release-${{ inputs.environment }}@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+          token_format: id_token
+          id_token_audience: ${{ steps.deploy.outputs.status_url }}
+          id_token_include_email: true
+      - name: Smoke test release
+        if: ${{ !inputs.build_only }}
+        run: scripts/cloud/smoke.sh
+        env:
+          STATUS_URL: ${{ steps.deploy.outputs.status_url }}
+          ID_TOKEN: ${{ steps.smoke-auth.outputs.id_token }}
       - name: Record successful staging evidence
         if: inputs.environment == 'staging' && !inputs.build_only
         run: printf 'staging\n' > environment.txt
