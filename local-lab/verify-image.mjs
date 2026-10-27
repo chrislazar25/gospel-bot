@@ -12,7 +12,9 @@ const project = `gospel-image-verify-${id}`;
 const image = `gospel-runtime:verify-${id}`;
 const runDir = `${base}/${project}`;
 const tlsDir = `${runDir}/tls`;
-const evidence = { project, image, source, checks: [], cleanup: false };
+const testNow = '2026-01-15T18:29:59.900Z';
+const today = new Date(Date.parse(testNow) + 330 * 60000).toISOString().slice(0, 10);
+const evidence = { project, image, source, testNow, checks: [], cleanup: false };
 mkdirSync(tlsDir, { recursive: true });
 const evidencePath = `${runDir}/evidence.json`;
 const logsPath = `${runDir}/commands.log`;
@@ -42,6 +44,7 @@ try {
   run('openssl', ['req', '-newkey', 'rsa:2048', '-nodes', '-keyout', `${tlsDir}/server.key`, '-out', `${tlsDir}/server.csr`, '-subj', '/CN=db']);
   writeFileSync(`${tlsDir}/extensions.cnf`, 'subjectAltName=DNS:db\nextendedKeyUsage=serverAuth\n');
   run('openssl', ['x509', '-req', '-in', `${tlsDir}/server.csr`, '-CA', `${tlsDir}/ca.crt`, '-CAkey', `${tlsDir}/ca.key`, '-CAcreateserial', '-out', `${tlsDir}/server.crt`, '-days', '1', '-extfile', `${tlsDir}/extensions.cnf`]);
+  writeFileSync(`${runDir}/clock.mjs`, `import { mock } from 'node:test';\nmock.timers.enable({ apis: ['Date'], now: ${Date.parse(testNow)} });\n`);
   writeFileSync(`${runDir}/compose.json`, JSON.stringify({
     services: {
       db: {
@@ -54,8 +57,8 @@ try {
       },
       runtime: {
         image,
-        environment: { APP_ENV: 'staging', DATABASE_URL: 'postgres://verification:isolated-local-only@db:5432/verification', NODE_EXTRA_CA_CERTS: '/tls/ca.crt', SENDING_ENABLED: 'false', PORT: '9127' },
-        volumes: [`${tlsDir}/ca.crt:/tls/ca.crt:ro`],
+        environment: { APP_ENV: 'staging', DATABASE_URL: 'postgres://verification:isolated-local-only@db:5432/verification', NODE_EXTRA_CA_CERTS: '/tls/ca.crt', NODE_OPTIONS: '--import=/verification-clock.mjs', SENDING_ENABLED: 'false', PORT: '9127' },
+        volumes: [`${tlsDir}/ca.crt:/tls/ca.crt:ro`, `${runDir}/clock.mjs:/verification-clock.mjs:ro`],
         networks: ['isolated'],
       },
       ingress: {
@@ -103,8 +106,9 @@ try {
   passed('service health recovers after migrations', after);
   const status = await http(port, '/status');
   assert.equal(status.status, 200);
+  assert.equal(status.body.date, today);
   assert.deepEqual(status.body.deliveries, []);
-  passed('GET status succeeds', status);
+  passed('GET status uses the shared fixed date just before IST midnight', status);
   const post = await http(port, '/send', 'POST');
   assert.equal(post.status, 405);
   passed('POST send route refuses mutation', post);
@@ -122,7 +126,6 @@ try {
   mkdirSync(emptyDir);
   mkdirSync(`${approvedDir}/messages`, { recursive: true });
   writeFileSync(`${emptyDir}/schedule.json`, JSON.stringify({ schemaVersion: 1, messages: [] }));
-  const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
   const dateAfter = days => new Date(Date.parse(today) + days * 86400000).toISOString().slice(0, 10);
   const messages = Array.from({ length: 14 }, (_, day) => {
     const date = dateAfter(day);

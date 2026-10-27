@@ -52,6 +52,14 @@ Local results are 34 simulator assertions, a passing helper lifecycle regression
 
 An [independent same-model reviewer](greptile-fixes-review.md) found no blockers in the combined diff, including the final CI/test-image wiring. It independently ran the offline workflow and Chrome startup tests and inspected the supplied database log. It did not independently rerun the Docker suites. Cross-family review is unavailable under the configured model preference. Manual style and comment review replaced the unavailable Cursor-only review plugins.
 
+## Fresh review follow-up
+
+Greptile's [PR 8 midnight finding](https://github.com/chrislazar25/gospel-bot/pull/8#discussion_r4395311396) identified a real race in the image harness. Fixtures captured today's date while later runtime containers read the wall clock again. Crossing IST midnight could invalidate the fourteen-day horizon or turn tomorrow's first send date into today.
+
+The harness now fixes both fixtures and runtime containers at `2026-01-15T18:29:59.900Z`, one tenth of a second before IST midnight. A locally generated, read-only Node test-clock module loads through NODE_OPTIONS in those test containers. `/status` must report that exact fixed date. The clock module is not included in the published image, and production code and time handling are unchanged.
+
+To reproduce the mismatch, the previous harness ran with its host Date shifted one day behind the containers. Its valid-content check failed. The revised harness ran under the same host shift and passed all 15 image checks plus cleanup. A [focused independent review](greptile-midnight-review.md) covers this follow-up; its evidence and narrower scope supplement the combined review above.
+
 ## Review limits and reading order
 
 Read `local-lab/src/delivery.ts`, then `local-lab/src/runtime.ts` and `status.ts`. For release/setup, read `.github/workflows/release.yml`, `scripts/cloud/promote.sh`, `smoke.sh`, and `neon-role.mjs`. Test helpers contain synthetic inputs only.
