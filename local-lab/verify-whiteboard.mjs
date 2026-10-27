@@ -9,12 +9,18 @@ import { connectCdp } from './whiteboard-cdp.mjs';
 const root = path.dirname(fileURLToPath(import.meta.url));
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'gospel-whiteboard-chrome-'));
 const evidence = path.join(root, 'evidence');
-fs.mkdirSync(evidence, { recursive: true });
-const chrome = spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
-const exited = new Promise(resolve => chrome.once('exit', resolve));
+let chrome;
+let closed;
 let ws;
 let call;
 try {
+  fs.mkdirSync(evidence, { recursive: true });
+  chrome = spawn(process.env.CHROME_BIN || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', ['--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--disable-background-networking', '--remote-debugging-port=0', `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
+  closed = new Promise(resolve => chrome.once('close', resolve));
+  await new Promise((resolve, reject) => {
+    chrome.once('spawn', resolve);
+    chrome.once('error', reject);
+  });
   const portFile = path.join(profile, 'DevToolsActivePort');
   for (let attempt = 0; !fs.existsSync(portFile) && attempt < 150; attempt++) await delay(100);
   assert.ok(fs.existsSync(portFile), 'Chrome exposed its isolated CDP port');
@@ -79,14 +85,14 @@ try {
   console.log(JSON.stringify(report, null, 2));
 } finally {
   if (call && ws?.readyState === WebSocket.OPEN) void call('Browser.close').catch(() => {});
-  await Promise.race([exited, delay(3000, undefined, { ref: false })]);
-  if (chrome.exitCode === null && chrome.signalCode === null) {
+  if (closed) await Promise.race([closed, delay(3000, undefined, { ref: false })]);
+  if (chrome?.pid && chrome.exitCode === null && chrome.signalCode === null) {
     chrome.kill('SIGTERM');
-    await Promise.race([exited, delay(3000, undefined, { ref: false })]);
+    await Promise.race([closed, delay(3000, undefined, { ref: false })]);
   }
-  if (chrome.exitCode === null && chrome.signalCode === null) {
+  if (chrome?.pid && chrome.exitCode === null && chrome.signalCode === null) {
     chrome.kill('SIGKILL');
-    await exited;
+    await closed;
   }
   ws?.close();
   await fs.promises.rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });

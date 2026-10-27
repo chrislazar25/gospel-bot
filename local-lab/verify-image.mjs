@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -117,10 +117,54 @@ try {
   const runtimeEnv = inspect.Config.Env || [];
   assert(!runtimeEnv.some(value => /^GREEN_API_|^TARGET_CHAT_ID=/.test(value)));
   passed('disabled send held with zero provider config', { exit: held.status, output: held.stdout.trim() });
-  const empty = runtime('content-check');
+  const emptyDir = `${runDir}/empty-content`;
+  const approvedDir = `${runDir}/synthetic-content`;
+  mkdirSync(emptyDir);
+  mkdirSync(`${approvedDir}/messages`, { recursive: true });
+  writeFileSync(`${emptyDir}/schedule.json`, JSON.stringify({ schemaVersion: 1, messages: [] }));
+  const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+  const dateAfter = days => new Date(Date.parse(today) + days * 86400000).toISOString().slice(0, 10);
+  const messages = Array.from({ length: 14 }, (_, day) => {
+    const date = dateAfter(day);
+    const payload = `Synthetic isolated verification content for ${date}.\n`;
+    const file = `messages/${date}.txt`;
+    writeFileSync(`${approvedDir}/${file}`, payload);
+    return { date, file, sha256: createHash('sha256').update(payload).digest('hex') };
+  });
+  writeFileSync(`${approvedDir}/schedule.json`, JSON.stringify({ schemaVersion: 1, messages }));
+  const contentMount = directory => ['-e', 'CONTENT_DIR=/verification/content', '-v', `${directory}:/verification/content:ro`];
+  const empty = runtime('content-check', true, contentMount(emptyDir));
   assert.equal(empty.status, 1);
   assert.match(empty.stdout, /approved_content_horizon_too_short/);
   passed('empty approved content fails CLI with actionable reason', { exit: empty.status, output: empty.stdout.trim() });
+  const valid = runtime('content-check', true, contentMount(approvedDir));
+  assert.equal(valid.status, 0);
+  assert.match(valid.stdout, /"event":"content_valid"/);
+  assert.match(valid.stdout, /"contentDaysRemaining":14/);
+  assert.match(valid.stdout, new RegExp(`"date":"${today}"`));
+  passed('fourteen dated synthetic content days pass CLI', { exit: valid.status, output: valid.stdout.trim() });
+  const otherTarget = '111111111111@g.us';
+  const target = '222222222222@g.us';
+  const payload = 'Synthetic isolated confirmed delivery.';
+  const payloadHash = createHash('sha256').update(payload).digest('hex');
+  compose(['exec', '-T', 'db', 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'verification', '-d', 'verification', '-c',
+    `INSERT INTO deliveries(id,channel,target,date,payload,payload_hash,status,attempts,provider_id,evidence) VALUES ('${randomUUID()}','green-api','${otherTarget}','${today}','${payload}','${payloadHash}','confirmed',1,'isolated-confirmed-id','synthetic image verification')`]);
+  const policy = [...contentMount(approvedDir), '-e', `TARGET_CHAT_ID=${target}`, '-e', 'SENDING_ENABLED=true', '-e', 'DELIVERY_DEADLINE_MINUTE=0'];
+  const missing = runtime('check', true, [...policy, '-e', `FIRST_SEND_DATE=${today}`]);
+  assert.equal(missing.status, 1);
+  assert.match(missing.stdout, /"event":"delivery_check"[^\n]*"status":"missing"/);
+  assert.match(missing.stdout, /"event":"delivery_problem"/);
+  passed('check reports the configured target missing despite another confirmed group', { exit: missing.status, output: missing.stdout.trim() });
+  const future = runtime('check', true, [...policy, '-e', `FIRST_SEND_DATE=${dateAfter(1)}`]);
+  assert.equal(future.status, 0);
+  assert.match(future.stdout, /"event":"delivery_check"[^\n]*"status":"held"/);
+  assert.doesNotMatch(future.stdout, /"event":"delivery_problem"/);
+  passed('check holds the configured target before its first send date', { exit: future.status, output: future.stdout.trim() });
+  const reconciled = runtime('reconcile', true, ['-e', 'CONTENT_DIR=/does-not-exist', '-e', `TARGET_CHAT_ID=${target}`,
+    '-e', 'GREEN_API_URL=https://api.green-api.com', '-e', 'GREEN_API_ID=0', '-e', 'GREEN_API_TOKEN=isolated-synthetic-token']);
+  assert.equal(reconciled.status, 0);
+  assert.match(reconciled.stdout, /"event":"reconciliation_complete","checked":0,"confirmed":0/);
+  passed('reconcile with no accepted rows succeeds without content', { exit: reconciled.status, output: reconciled.stdout.trim() });
   evidence.result = 'PASS';
 } catch (error) {
   evidence.result = 'FAIL';
