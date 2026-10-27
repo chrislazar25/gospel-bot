@@ -5,7 +5,7 @@ import { reconcileRole } from './neon-role.mjs';
 
 const require = createRequire(new URL('../../local-lab/package.json', import.meta.url));
 const { Client } = require('pg');
-if (!process.env.TEST_DATABASE_URL) throw new Error('TEST_DATABASE_URL is required for the PostgreSQL reconciliation test');
+if (process.env.TEST_DATABASE_URL !== 'postgres://runtime:runtime@db:5432/runtime') throw new Error('Run this test through the isolated runtime verification stack');
 const suffix = randomBytes(8).toString('hex');
 const database = `cloud_reconcile_${suffix}`;
 const role = `cloud_runtime_${suffix}`;
