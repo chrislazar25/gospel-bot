@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createPool } from './db.js';
 import { migrate, checkSchema } from './migrate.js';
@@ -21,6 +21,8 @@ test('real Postgres, production schema, and Green API wire protocol', async t =>
   let expectedId = 'BAE5F4886F6F2D05';
   const chatId = '120363000000000000@g.us';
   const requests: unknown[] = [];
+  const receiptIds: string[] = [];
+  const receiptById = new Map<string, string>();
   const server = createServer((request, response) => {
     void (async () => {
       const reply = (value: unknown, code = 200) => response.writeHead(code, { 'content-type': 'application/json' }).end(JSON.stringify(value));
@@ -38,8 +40,9 @@ test('real Postgres, production schema, and Green API wire protocol', async t =>
       }
       if (request.url === '/waInstance1234/getMessage/test-token') {
         receiptCalls++;
-        z.object({ chatId: z.literal(chatId), idMessage: z.literal(expectedId) }).strict().parse(body);
-        return reply({ type: 'outgoing', chatId: mode === 'wrong-chat' ? '111@g.us' : chatId, idMessage: mode === 'wrong-id' ? 'BAE5DIFFERENT0000' : expectedId, statusMessage: receipt });
+        const parsed = z.object({ chatId: z.literal(chatId), idMessage: z.string().min(1) }).strict().parse(body);
+        receiptIds.push(parsed.idMessage);
+        return reply({ type: 'outgoing', chatId: mode === 'wrong-chat' ? '111@g.us' : chatId, idMessage: mode === 'wrong-id' ? 'BAE5DIFFERENT0000' : parsed.idMessage, statusMessage: receiptById.get(parsed.idMessage) ?? receipt });
       }
       return reply({ error: 'unexpected method' }, 404);
     })().catch(() => response.writeHead(400).end('{}'));
@@ -55,7 +58,7 @@ test('real Postgres, production schema, and Green API wire protocol', async t =>
   const provider = createGreenApi({ url: 'https://api.green-api.com', instanceId: '1234', token: 'test-token' }, localFetch);
   const policy = { kind: 'scheduled', enabled: true, firstDate: '2026-10-27', startMinute: 0, endMinute: 120 } satisfies Parameters<typeof createDeliveryService>[0]['policy'];
   const service = (enabled = true, message = async () => 'Synthetic local Green protocol fixture.\n') => createDeliveryService({ db: appDb, channel: 'green-api', target: chatId, provider, policy: { ...policy, enabled }, now: async () => new Date('2026-10-26T19:00:00Z'), message, revision: 'a'.repeat(40) });
-  async function reset() { await db.query('TRUNCATE deliveries,delivery_evidence'); sends = 0; receiptCalls = 0; mode = 'success'; receipt = 'sent'; expectedId = 'BAE5F4886F6F2D05'; }
+  async function reset() { await db.query('TRUNCATE deliveries,delivery_evidence'); sends = 0; receiptCalls = 0; mode = 'success'; receipt = 'sent'; expectedId = 'BAE5F4886F6F2D05'; receiptIds.length = 0; receiptById.clear(); }
   try {
     await t.test('status can start before initial migration but reports not ready', async () => {
       const status = createStatusServer(db, 'unreleased');
@@ -132,6 +135,27 @@ test('real Postgres, production schema, and Green API wire protocol', async t =>
         assert.equal(receiptCalls, 0);
       });
     }
+    await t.test('later receipts are checked despite fifty older unavailable receipts and a restarted worker', async () => {
+      await reset();
+      const payload = 'Synthetic receipt fairness fixture.';
+      const hash = createHash('sha256').update(payload).digest('hex');
+      const ids: string[] = [];
+      for (let index = 0; index < 51; index++) {
+        const id = randomUUID();
+        const providerId = `BAE5FAIR${String(index).padStart(16, '0')}`;
+        ids.push(id);
+        const date = new Date(Date.parse('2026-01-01') + index * 86400000).toISOString().slice(0, 10);
+        await db.query("INSERT INTO deliveries(id,channel,target,date,payload,payload_hash,status,attempts,provider_id) VALUES($1,'green-api',$2,$3,$4,$5,'accepted',1,$6)", [id, chatId, date, payload, hash, providerId]);
+        if (index === 50) receiptById.set(providerId, 'delivered');
+      }
+      await service().reconcileAccepted();
+      assert.equal(receiptIds.length, 50);
+      assert.equal(new Set(receiptIds).size, 50);
+      await service().reconcileAccepted();
+      const newest = ids.at(-1); assert.ok(newest);
+      assert.equal((await service().get(newest)).status, 'confirmed');
+      assert.equal(sends, 0);
+    });
     await t.test('acceptance bookkeeping failure remains held after the external send', async () => {
       await reset();
       await db.query("CREATE FUNCTION reject_acceptance() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.status='accepted' THEN RAISE EXCEPTION 'injected bookkeeping failure'; END IF; RETURN NEW; END $$");
