@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
@@ -61,7 +61,9 @@ async function launch() {
   const config = join(directory, 'config');
   mkdirSync(config);
   writeFileSync(join(config, 'clock.json'), readFileSync(join(root, 'config', 'clock.json')));
-  state = { project, directory, environment: { APP1_PORT: '0', APP2_PORT: '0', FAKE_PORT: '0', LAB_CONFIG_DIR: config } };
+  const content = join(directory, 'content');
+  cpSync(join(root, 'content'), content, { recursive: true });
+  state = { project, directory, environment: { APP1_PORT: '0', APP2_PORT: '0', FAKE_PORT: '0', LAB_CONFIG_DIR: config, LAB_CONTENT_DIR: content } };
   writeFileSync(latest, JSON.stringify(state));
   compose(['up', '--build', '-d']);
   const address = port => `http://${compose(['port', 'ingress', String(port)]).trim()}`;
@@ -80,7 +82,11 @@ async function drive() {
   check('concurrent replicas share one daily UUID', results.every(row => row.id === id));
   const accepted = await request(state.apps[0], `/get-status/${id}`);
   check('provider acceptance is not confirmation', accepted.status === 'accepted' && accepted.attempts === 1 && accepted.provider_id);
+  const source = join(state.environment.LAB_CONTENT_DIR, `${accepted.date}.txt`);
+  const original = readFileSync(source);
+  writeFileSync(source, 'SYNTHETIC changed fixture after claim.\n');
   const again = await request(state.apps[1], '/send-todays-message', {});
+  writeFileSync(source, original);
   check('repeated POST preserves payload and hash', again.payload === accepted.payload && again.payload_hash === accepted.payload_hash);
   await Promise.all(state.apps.map(base => request(base, `/get-status/${id}`)));
   const sent = await request(state.fake, '/admin/requests');
@@ -98,6 +104,90 @@ async function drive() {
   report.delivery = accepted;
   report.externalRequests = sent;
   save();
+  await faults();
+}
+function sql(statement) {
+  return compose(['exec', '-T', 'db', 'psql', '-U', 'lab', '-d', 'lab', '-At', '-v', 'ON_ERROR_STOP=1', '-c', statement]).trim();
+}
+function clock(now) { writeFileSync(join(state.environment.LAB_CONFIG_DIR, 'clock.json'), JSON.stringify({ now })); }
+async function reset(mode) {
+  assert.match(state.project, /^gospel-lab-[0-9a-f]{8}$/);
+  sql('TRUNCATE deliveries,delivery_evidence,simulator.requests;');
+  clock('2026-10-27T18:29:59.000Z');
+  await request(state.fake, '/admin/control', { mode });
+}
+async function snapshot(name) {
+  report.scenarios ??= {};
+  report.scenarios[name] = {
+    deliveries: JSON.parse(sql("SELECT coalesce(json_agg(d),'[]') FROM deliveries d")),
+    evidence: JSON.parse(sql("SELECT coalesce(json_agg(e),'[]') FROM delivery_evidence e")),
+    externalRequests: await request(state.fake, '/admin/requests'),
+  };
+  save();
+}
+async function restart() {
+  compose(['restart', 'db']);
+  await ready();
+  check('database-only restart recovers idle pooled clients', true);
+  compose(['restart', 'app1', 'app2', 'fake']);
+  await ready();
+}
+async function faults() {
+  const post = base => request(base ?? state.apps[0], '/send-todays-message', {});
+  const get = id => request(state.apps[1], `/get-status/${id}`);
+  const external = () => request(state.fake, '/admin/requests');
+  await snapshot('concurrent-and-frozen');
+  await reset('reject');
+  const rejected = await post();
+  check('explicit simulator rejection permits retry', rejected.status === 'pending' && rejected.attempts === 1 && rejected.provider_id === null);
+  await request(state.fake, '/admin/control', { mode: 'success' });
+  const retried = await post();
+  check('proven rejection retry uses same frozen record', retried.id === rejected.id && retried.status === 'accepted' && retried.attempts === 2 && retried.payload_hash === rejected.payload_hash);
+  check('rejected attempt was not accepted externally', (await external()).filter(row => row.accepted).length === 1);
+  await snapshot('rejection-then-retry');
+  for (const mode of ['generic500', 'malformed', 'timeout', 'accept-drop']) {
+    await reset(mode);
+    const uncertain = await post();
+    check(`${mode} leaves durable unknown`, uncertain.status === 'unknown' && uncertain.provider_id === null && uncertain.attempts === 1);
+    if (mode === 'accept-drop') {
+      const acceptedElsewhere = (await external())[0];
+      await request(state.fake, '/admin/confirm', { providerId: acceptedElsewhere.id });
+      await restart();
+    }
+    const repeats = await Promise.all([post(state.apps[0]), post(state.apps[1]), get(uncertain.id)]);
+    check(`${mode} repeated POST and GET never resend or infer confirmation`, repeats.every(row => row.id === uncertain.id && row.status === 'unknown' && row.attempts === 1) && (await external()).length === 1);
+    if (mode !== 'generic500') check(`${mode} external acceptance remains independent evidence`, (await external())[0].accepted);
+    await snapshot(mode);
+  }
+  await reset('success');
+  sql("CREATE FUNCTION reject_accept() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'injected accepted bookkeeping failure'; END $$; CREATE TRIGGER reject_accept BEFORE UPDATE ON deliveries FOR EACH ROW WHEN (NEW.status='accepted') EXECUTE FUNCTION reject_accept();");
+  const bookkeeping = await post();
+  sql('DROP TRIGGER reject_accept ON deliveries; DROP FUNCTION reject_accept();');
+  check('accepted HTTP with failed database bookkeeping remains unknown', bookkeeping.status === 'unknown' && bookkeeping.provider_id === null && (await external())[0].accepted);
+  const stillUnknown = await post();
+  check('bookkeeping failure never retries accepted external send', stillUnknown.status === 'unknown' && stillUnknown.attempts === 1 && (await external()).length === 1);
+  await snapshot('accepted-bookkeeping-failure');
+  await reset('delayed');
+  const delayed = await post();
+  check('sent receipt leaves accepted unconfirmed', delayed.status === 'accepted' && (await get(delayed.id)).status === 'accepted');
+  await request(state.fake, '/admin/confirm', { providerId: delayed.provider_id });
+  const confirmed = await get(delayed.id);
+  check('delivered receipt confirms known provider ID', confirmed.status === 'confirmed' && confirmed.evidence === 'receipt:delivered');
+  await restart();
+  const durable = await get(delayed.id);
+  check('app fake and database restart preserve confirmation and payload', durable.status === 'confirmed' && durable.provider_id === confirmed.provider_id && durable.payload_hash === confirmed.payload_hash);
+  await post();
+  check('confirmed POST and GET never send again', (await external()).length === 1);
+  await snapshot('delayed-receipt-and-restarts');
+  await reset('success');
+  const before = await post();
+  clock('2026-10-27T18:30:00.000Z');
+  const after = await post(state.apps[1]);
+  clock('2026-10-28T18:30:00.000Z');
+  const third = await post();
+  check('IST midnight advances daily key independently of UTC day', before.date === '2026-10-27' && after.date === '2026-10-28' && third.date === '2026-10-29' && before.id !== after.id && after.id !== third.id);
+  check('three fixture dates freeze distinct synthetic content', new Set([before.payload_hash, after.payload_hash, third.payload_hash]).size === 3 && (await external()).length === 3);
+  await snapshot('ist-midnight');
 }
 function cleanup() {
   if (!state || state.cleaned) return;

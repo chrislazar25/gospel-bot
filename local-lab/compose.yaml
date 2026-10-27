@@ -33,7 +33,7 @@ services:
       fake: {condition: service_started}
     volumes:
       - ${LAB_CONFIG_DIR:-./config}:/lab/config:ro
-      - ./content:/lab/content:ro
+      - ${LAB_CONTENT_DIR:-./content}:/lab/content:ro
     networks: [lab]
   app2:
     <<: *app
