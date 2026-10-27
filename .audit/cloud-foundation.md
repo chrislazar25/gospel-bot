@@ -9,15 +9,15 @@ CI executes the existing real Docker/Postgres delivery checks. The same delivery
 - [x] Read the Principles section of poteto-mode.
 - [x] Phase A: Frame.
 - [x] Phase B: Design the workflow.
-- [ ] Phase C: Run the loop.
+- [x] Phase C: Run the loop.
 - [x] Add CI and verify against the existing lab.
 - [x] Ground, sketch two architectures, cross-judge, and synthesize.
 - [x] Implement production runtime and Green API adapter with real Postgres verification.
 - [x] Implement content validation and deployable image.
-- [ ] Implement infrastructure, bootstrap, release, and monitoring workflows.
-- [ ] Verify workflow syntax, Terraform, image, behavior, and cloud access prerequisites.
-- [ ] Phase D: Keep the audit trail.
-- [ ] Phase E: Verify and hand back.
+- [x] Implement infrastructure, bootstrap, release, and monitoring workflows.
+- [x] Verify workflow syntax, Terraform, image, behavior, and cloud access prerequisites. Cloud execution remains unverified.
+- [x] Phase D: Keep the audit trail.
+- [x] Phase E: Verify and hand back.
 
 ## Scope and gates
 
@@ -40,3 +40,7 @@ No matching deslop or comment-sicko plugin was installed. Independent reviewers 
 Cloud provisioning remains blocked by missing project selection and account authorization. The user has no Neon account or separate Green API test instance yet. The next operator step is identifying the existing GCP project's ID. The project, Neon account, provider isolation, fourteen approved content dates, and notification routing must be established before cloud or live-provider verification can be reported.
 
 The actual production image passed local TLS verification through the committed image harness. It rejects an untrusted database certificate, migrates twice, changes health from503 to200 after migration, listens on port9127, refuses HTTP mutation, and holds sends without provider configuration. All owned Docker resources and test private keys were removed.
+
+Infrastructure checkpoint: Terraform provider validation passed for bootstrap and environment modules, actionlint passed all workflows, every Bash file passed syntax checks and ShellCheck, and seven fake-command build/release scenarios passed. These scenarios test control flow only. No GCP or Neon API provisioning ran. Secret references are numeric versions; schedules, sending, and alert policies start disabled. Alerts require a recurring check sample and verified notification routing before activation.
+
+Same-model audit review found an unfinished checklist and an evidence path tied to the implementation worktree. This update completes the local checklist and stores a sanitized image report at `.audit/evidence/runtime-image.json`. The remaining attention items are cloud account setup, approved content, and actual provider verification. Deslop plugin and cross-family review remain unavailable.

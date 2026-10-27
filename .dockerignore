@@ -7,3 +7,4 @@
 **/.env.*
 **/*.tfstate*
 **/*.tfvars
+**/gha-creds-*.json

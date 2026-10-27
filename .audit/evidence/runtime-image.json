@@ -1,0 +1,87 @@
+{
+  "project": "gospel-image-verify-d90129c2",
+  "image": "gospel-runtime:verify-d90129c2",
+  "source": "repository root; local working path removed from this copy",
+  "checks": [
+    {
+      "name": "image nonroot and production entrypoints only",
+      "uid": 1000,
+      "files": [
+        "content.js",
+        "db.js",
+        "delivery.js",
+        "green-api.js",
+        "migrate.js",
+        "runtime.js",
+        "status.js"
+      ]
+    },
+    {
+      "name": "untrusted PostgreSQL TLS fails closed",
+      "exit": 1,
+      "output": "{\"severity\":\"ERROR\",\"event\":\"runtime_failed\",\"reason\":\"operation_failed\"}"
+    },
+    {
+      "name": "service before migration reports unhealthy at nondefault PORT",
+      "containerPort": 9127,
+      "published": "127.0.0.1:56921",
+      "response": {
+        "status": 503,
+        "body": {
+          "error": "database unavailable"
+        }
+      }
+    },
+    {
+      "name": "migration 1 succeeds",
+      "exit": 0,
+      "output": "{\"severity\":\"INFO\",\"event\":\"migration_complete\",\"revision\":\"unreleased\"}"
+    },
+    {
+      "name": "migration 2 succeeds",
+      "exit": 0,
+      "output": "{\"severity\":\"INFO\",\"event\":\"migration_complete\",\"revision\":\"unreleased\"}"
+    },
+    {
+      "name": "service health recovers after migrations",
+      "status": 200,
+      "body": {
+        "ok": true,
+        "revision": "unreleased"
+      }
+    },
+    {
+      "name": "GET status succeeds",
+      "status": 200,
+      "body": {
+        "date": "2026-10-28",
+        "revision": "unreleased",
+        "deliveries": []
+      }
+    },
+    {
+      "name": "POST send route refuses mutation",
+      "status": 405,
+      "body": {
+        "error": "GET required"
+      }
+    },
+    {
+      "name": "PostgreSQL observes runtime TLS connection",
+      "activeTlsConnections": 1
+    },
+    {
+      "name": "disabled send held with zero provider config",
+      "exit": 0,
+      "output": "{\"severity\":\"INFO\",\"event\":\"sending_held\",\"date\":\"2026-10-28\"}"
+    },
+    {
+      "name": "empty approved content fails CLI with actionable reason",
+      "exit": 1,
+      "output": "{\"severity\":\"ERROR\",\"event\":\"runtime_failed\",\"reason\":\"approved_content_horizon_too_short\"}"
+    }
+  ],
+  "cleanup": true,
+  "result": "PASS",
+  "runtimeSourceCommit": "a28fbaa"
+}
