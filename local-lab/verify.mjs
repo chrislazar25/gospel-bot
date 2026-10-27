@@ -51,6 +51,10 @@ async function doctor(owned = true) {
   process.stdout.write('Owned project, initialized schema, and all public health endpoints ready.\n');
 }
 async function launch() {
+  try {
+    const selected = JSON.parse(readFileSync(latest, 'utf8'));
+    assert.equal(selected?.cleaned, true, `Selected helper run ${selected?.project ?? '(unknown project)'} at ${latest} is not cleaned; run cleanup before launching again`);
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
   const project = `gospel-lab-${randomUUID().slice(0, 8)}`;
   const directory = join(evidenceRoot, project);
   mkdirSync(directory);
@@ -96,7 +100,7 @@ async function drive() {
   save();
 }
 function cleanup() {
-  if (!state) return;
+  if (!state || state.cleaned) return;
   assert.match(state.project, /^gospel-lab-[0-9a-f]{8}$/);
   try { writeFileSync(join(state.directory, 'compose.log'), compose(['logs', '--no-color'])); }
   finally {
