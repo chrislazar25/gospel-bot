@@ -1,0 +1,54 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: lab
+      POSTGRES_PASSWORD: local-lab-only
+      POSTGRES_DB: lab
+    volumes:
+      - lab-data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/001-lab.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U lab -d lab && psql -U lab -d lab -tAc 'SELECT count(*) FROM simulator.control' | grep -q 1"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+    networks: [lab]
+  fake:
+    stop_grace_period: 1s
+    build: .
+    command: [node, dist/fake.js]
+    environment: &environment
+      DATABASE_URL: postgres://lab:local-lab-only@db:5432/lab
+      FAKE_URL: http://fake:3000
+    depends_on:
+      db: {condition: service_healthy}
+    networks: [lab]
+  app1: &app
+    stop_grace_period: 1s
+    build: .
+    environment: *environment
+    depends_on:
+      db: {condition: service_healthy}
+      fake: {condition: service_started}
+    volumes:
+      - ${LAB_CONFIG_DIR:-./config}:/lab/config:ro
+      - ./content:/lab/content:ro
+    networks: [lab]
+  app2:
+    <<: *app
+  ingress:
+    stop_grace_period: 1s
+    image: nginx:1.28-alpine
+    depends_on: [app1, app2, fake]
+    volumes: ["./nginx.conf:/etc/nginx/conf.d/default.conf:ro"]
+    ports:
+      - "127.0.0.1:${APP1_PORT:-3101}:3001"
+      - "127.0.0.1:${APP2_PORT:-3102}:3002"
+      - "127.0.0.1:${FAKE_PORT:-3103}:3003"
+    networks: [entry, lab]
+networks:
+  entry:
+  lab: {internal: true}
+volumes:
+  lab-data:
