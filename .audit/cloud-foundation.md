@@ -12,8 +12,8 @@ CI executes the existing real Docker/Postgres delivery checks. The same delivery
 - [ ] Phase C: Run the loop.
 - [x] Add CI and verify against the existing lab.
 - [x] Ground, sketch two architectures, cross-judge, and synthesize.
-- [ ] Implement production runtime and Green API adapter with real Postgres verification.
-- [ ] Implement content validation and deployable image.
+- [x] Implement production runtime and Green API adapter with real Postgres verification.
+- [x] Implement content validation and deployable image.
 - [ ] Implement infrastructure, bootstrap, release, and monitoring workflows.
 - [ ] Verify workflow syntax, Terraform, image, behavior, and cloud access prerequisites.
 - [ ] Phase D: Keep the audit trail.
@@ -38,3 +38,5 @@ CI PR #5 passed on GitHub's Linux runner. The extracted shared core passed all 3
 No matching deslop or comment-sicko plugin was installed. Independent reviewers inspected the diff, comments, and suppressions manually. No scoped comments or TypeScript suppressions required removal. Configured pstack models are all GPT-6.1 Sol. Independent reviews therefore use the same model family; the requested cross-family trail review is unavailable and is not claimed.
 
 Cloud provisioning remains blocked by missing project selection and account authorization. The user has no Neon account or separate Green API test instance yet. The next operator step is identifying the existing GCP project's ID. The project, Neon account, provider isolation, fourteen approved content dates, and notification routing must be established before cloud or live-provider verification can be reported.
+
+The actual production image passed local TLS verification through the committed image harness. It rejects an untrusted database certificate, migrates twice, changes health from503 to200 after migration, listens on port9127, refuses HTTP mutation, and holds sends without provider configuration. All owned Docker resources and test private keys were removed.

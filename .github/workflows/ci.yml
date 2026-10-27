@@ -49,19 +49,7 @@ jobs:
         with:
           node-version: '22'
       - run: node local-lab/verify-runtime.mjs
-      - run: docker build -f local-lab/Dockerfile.runtime -t gospel-runtime:ci .
-      - name: Verify packaged runtime excludes simulator entry points
-        run: |
-          docker run --rm --entrypoint sh gospel-runtime:ci -ec '
-            test "$(id -u)" = 1000
-            test -f dist/runtime.js
-            test -f content/schedule.json
-            test -f migrations/001_initial.sql
-            test ! -e dist/fake.js
-            test ! -e dist/core.js
-            test ! -e dist/app.js
-            test ! -e dist/http.js
-          '
+      - run: node local-lab/verify-image.mjs
       - name: Preserve runtime verification evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

@@ -32,3 +32,5 @@ GetMessage history can lag and requires the appropriate outgoing-status settings
 Production activation is separate from provisioning. First verify staging, reconcile the old sender and provider queue, stop every old sending path, and choose the next eligible IST date. The new database cannot coordinate an old sender that does not use it. Rollback preserves delivery evidence and never resets an unknown attempt.
 
 Run `node local-lab/verify.mjs all` for the simulator scenarios. Run `node local-lab/verify-runtime.mjs` for the actual production schema, restricted roles, content rules, and Green-shaped HTTP fixtures in an isolated Docker network. These checks never import the old sender or use real provider credentials.
+
+Run `node local-lab/verify-image.mjs` to build and execute the production image with a private test CA and isolated TLS Postgres. It verifies certificate rejection, migrations, a nondefault port, status routes, and disabled startup without provider credentials. Docker resources and test private keys are removed; evidence stays under the ignored local-lab evidence directory. OpenSSL and Docker Compose are required.
