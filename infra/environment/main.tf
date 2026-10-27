@@ -62,8 +62,8 @@ locals {
     migrate   = { database = "migration-database", green = false, cron = "" }
   }
   secrets    = toset(["database", "migration-database", "status-database", "green-token"])
-  common_env = { APP_ENV = var.environment, CONTENT_DIR = "/app/content", SENDING_ENABLED = "false", SEND_WINDOW_START_MINUTE = "420", SEND_WINDOW_END_MINUTE = "480", DELIVERY_DEADLINE_MINUTE = "450" }
-  green_env  = { GREEN_API_URL = var.green_api_url, GREEN_API_ID = var.green_api_id, TARGET_CHAT_ID = var.target_chat_id }
+  common_env = { APP_ENV = var.environment, CONTENT_DIR = "/app/content", SENDING_ENABLED = "false", TARGET_CHAT_ID = var.target_chat_id, SEND_WINDOW_START_MINUTE = "420", SEND_WINDOW_END_MINUTE = "480", DELIVERY_DEADLINE_MINUTE = "450" }
+  green_env  = { GREEN_API_URL = var.green_api_url, GREEN_API_ID = var.green_api_id }
   release    = "serviceAccount:gospel-release-${var.environment}@${var.project_id}.iam.gserviceaccount.com"
   neon       = "serviceAccount:gospel-neon-${var.environment}@${var.project_id}.iam.gserviceaccount.com"
 }

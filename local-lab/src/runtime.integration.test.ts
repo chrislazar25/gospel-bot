@@ -42,6 +42,7 @@ test('real Postgres, production schema, and Green API wire protocol', async t =>
         receiptCalls++;
         const parsed = z.object({ chatId: z.literal(chatId), idMessage: z.string().min(1) }).strict().parse(body);
         receiptIds.push(parsed.idMessage);
+        if (receiptById.get(parsed.idMessage) === 'missing') return reply({ error: 'receipt unavailable' }, 404);
         return reply({ type: 'outgoing', chatId: mode === 'wrong-chat' ? '111@g.us' : chatId, idMessage: mode === 'wrong-id' ? 'BAE5DIFFERENT0000' : parsed.idMessage, statusMessage: receiptById.get(parsed.idMessage) ?? receipt });
       }
       return reply({ error: 'unexpected method' }, 404);
@@ -135,7 +136,7 @@ test('real Postgres, production schema, and Green API wire protocol', async t =>
         assert.equal(receiptCalls, 0);
       });
     }
-    await t.test('later receipts are checked despite fifty older unavailable receipts and a restarted worker', async () => {
+    await t.test('later receipts are checked despite fifty older sent or unavailable receipts and a restarted worker', async () => {
       await reset();
       const payload = 'Synthetic receipt fairness fixture.';
       const hash = createHash('sha256').update(payload).digest('hex');
@@ -146,6 +147,7 @@ test('real Postgres, production schema, and Green API wire protocol', async t =>
         ids.push(id);
         const date = new Date(Date.parse('2026-01-01') + index * 86400000).toISOString().slice(0, 10);
         await db.query("INSERT INTO deliveries(id,channel,target,date,payload,payload_hash,status,attempts,provider_id) VALUES($1,'green-api',$2,$3,$4,$5,'accepted',1,$6)", [id, chatId, date, payload, hash, providerId]);
+        if (index < 25) receiptById.set(providerId, 'missing');
         if (index === 50) receiptById.set(providerId, 'delivered');
       }
       await service().reconcileAccepted();
