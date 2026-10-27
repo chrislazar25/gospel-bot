@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gospel bot • local build whiteboard</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#efeee9;color:#193143;font-family:"Comic Sans MS","Chalkboard SE",cursive}main{max-width:1150px;margin:24px auto;padding:26px;background:#fffef9;border:3px solid #263e4b;border-radius:6px 15px 9px 4px;box-shadow:5px 7px 0 #d4d5d0}h1{font-size:28px;margin:0 0 5px}p{margin:8px 0}small{font-family:system-ui,sans-serif;color:#56616a}svg{display:block;width:100%;height:auto}text{font-family:"Comic Sans MS","Chalkboard SE",cursive;font-size:20px;fill:#193143}.tiny{font-size:16px}.title{font-size:24px;font-weight:bold}.blue{stroke:#176baa}.green{stroke:#28805d}.red{stroke:#bf5144}.box{fill:#fffef9;stroke-width:3;stroke-linejoin:round}.arrow{fill:none;stroke:#193143;stroke-width:2.5;marker-end:url(#arrow)}button{font:inherit;padding:9px 15px;border:2px solid #193143;border-radius:4px 9px 3px 6px;background:white;cursor:pointer}button[aria-pressed=true]{background:#e1efef}#story{min-height:62px;border-left:4px solid #176baa;padding:8px 14px;font-size:19px}.controls{display:flex;gap:8px;flex-wrap:wrap}.caption{font-size:18px;color:#28805d}.mobile-board{display:none}@media(max-width:600px){main{margin:8px;padding:12px}h1{font-size:23px}svg{display:none}.mobile-board{display:block;margin:16px 0}.mobile-node{position:relative;border:2px solid #176baa;border-radius:3px 8px 5px 2px;padding:10px 12px;background:#fffef9;font-size:16px;line-height:1.45}.mobile-node strong{display:block;font-size:19px}.mobile-node span{display:block}.mobile-runner{margin:0 25px;text-align:center}.mobile-arrow{text-align:center;font-family:system-ui,sans-serif;font-size:25px;line-height:1.2}.mobile-network{border:2px dashed #6b969a;background:#f7fbfb;padding:10px}.mobile-network-label{display:block;font-size:14px;margin:0 0 10px}.mobile-dependencies{margin:0 0 0 12px;padding:16px 0 0 18px;border-left:2px solid #193143}.mobile-dependencies .mobile-node{margin:0 0 14px}.mobile-dependencies .mobile-node:last-child{margin-bottom:0}.mobile-dependencies .mobile-node:before{content:"→";position:absolute;left:-21px;top:13px;font-family:system-ui,sans-serif;font-size:20px;line-height:1}.mobile-node.green{border-color:#28805d}.mobile-outside{display:block;font-size:14px;margin:8px 4px}.controls button{font-size:16px;padding:9px 12px}#story{font-size:18px}}
+</style></head><body><main>
+<h1>Our first build, on your laptop</h1><small>Design sketch. Buttons illustrate the behavior we will test.</small>
+<svg viewBox="0 0 1080 660" role="img" aria-label="A test runner calls our app. The app reads synthetic files, records delivery state in Postgres, and calls a fake WhatsApp gateway. All services run locally in Docker. Production GCP stays separate.">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10" fill="#193143"/></marker></defs>
+<path d="M30 112L1045 109L1049 609L26 614Z" fill="#f7fbfb" stroke="#6b969a" stroke-width="2" stroke-dasharray="9 7"/>
+<text x="47" y="146" class="tiny">Docker Compose • isolated local network</text>
+<path class="box blue" d="M337 13L716 17L711 88L333 85Z"/><text x="361" y="46" class="title">You / test runner</text><text x="361" y="72" class="tiny">Trigger now. No waiting for tomorrow.</text>
+<path class="arrow" d="M525 89L525 190"/>
+<path class="box blue" d="M262 194L794 190L799 358L258 362Z"/>
+<text x="285" y="226" class="title">Our app • TypeScript</text><text x="285" y="263">POST /send-todays-message</text><text x="285" y="297">GET /get-status/{delivery_id}</text><text x="285" y="331" class="tiny">One shared send function. App creates the ID first.</text>
+<path class="box green" d="M821 198L1027 202L1023 345L822 341Z"/>
+<text x="839" y="234">Fixture files</text><text x="839" y="268" class="tiny">Date + message</text><text x="839" y="300" class="tiny">Read-only content</text><path class="arrow" d="M820 275L802 275"/>
+<path class="arrow" d="M400 363L400 441L272 441L272 468"/><text x="90" y="414" class="tiny">Claim before sending</text>
+<path class="box blue" d="M66 471L479 467L484 575L62 580Z"/>
+<text x="90" y="502" class="title">Postgres</text><text x="90" y="535" class="tiny">Delivery IDs, attempts, status, receipts</text><text x="90" y="560" class="tiny">Durable volume • survives app restarts</text>
+<path class="arrow" d="M654 363L654 441L786 441L786 468"/><text x="674" y="414" class="tiny">Send + check receipt</text>
+<path class="box green" d="M571 471L998 467L1001 579L567 575Z"/>
+<text x="593" y="502" class="title">Fake WhatsApp API</text><text x="593" y="535" class="tiny">Success • reject • accept then disconnect</text><text x="593" y="560" class="tiny">Delayed receipt • inspect accepted messages</text>
+<text x="56" y="645" class="tiny">GCP + the real WhatsApp group stay outside this setup.</text>
+</svg>
+<div class="mobile-board" role="img" aria-label="You trigger our app. Inside Docker, the app reads synthetic files, claims delivery in Postgres, and calls the fake WhatsApp API. Production stays separate.">
+<div class="mobile-node mobile-runner"><strong>You / test runner</strong><span>Trigger now. No waiting.</span></div>
+<div class="mobile-arrow" aria-hidden="true">↓</div>
+<div class="mobile-network">
+<span class="mobile-network-label">Docker Compose • isolated locally</span>
+<div class="mobile-node"><strong>Our app • TypeScript</strong><span>POST /send-todays-message</span><span>GET /get-status/{delivery_id}</span><span>Creates the delivery ID first.</span></div>
+<div class="mobile-dependencies">
+<div class="mobile-node green"><strong>Fixture files</strong><span>App reads the date + message.</span><span>Read-only content.</span></div>
+<div class="mobile-node"><strong>Postgres</strong><span>App claims before sending.</span><span>IDs, attempts, status + receipts.</span><span>Survives app restarts.</span></div>
+<div class="mobile-node green"><strong>Fake WhatsApp API</strong><span>App sends + checks receipts.</span><span>Success, reject, disconnect, or delayed receipt.</span></div>
+</div></div>
+<span class="mobile-outside">GCP + the real group stay outside.</span>
+</div>
+<div class="controls" role="group" aria-label="Illustrate a delivery outcome">
+<button data-mode="success" aria-pressed="true">Normal send</button><button data-mode="reject" aria-pressed="false">Rejected</button><button data-mode="unknown" aria-pressed="false">Connection drops</button><button data-mode="repeat" aria-pressed="false">Two send requests</button>
+</div>
+<p id="story" aria-live="polite">The app saves a delivery ID, sends once, then records acceptance. A delivery receipt confirms arrival.</p>
+<p class="caption">Same day + same group = one delivery record.</p>
+<small>First milestone is the local test lab. Git approval automation, real provider integration, AI ops, and GCP deployment come later.</small>
+</main><script>
+const stories={success:'The app saves a delivery ID, sends once, then records acceptance. A delivery receipt confirms arrival.',reject:'The fake API proves it rejected the request. The same delivery can be retried safely.',unknown:'The fake API accepts, then drops the connection. The app holds the delivery as unknown. It checks evidence instead of blindly sending again.',repeat:'Both app instances ask Postgres for the same daily delivery. Only one can claim the send. Both requests return the same delivery ID.'};
+document.querySelectorAll('button').forEach(button=>button.addEventListener('click',()=>{document.querySelectorAll('button').forEach(other=>other.setAttribute('aria-pressed',String(other===button)));document.getElementById('story').textContent=stories[button.dataset.mode];}));
+</script></body></html>
