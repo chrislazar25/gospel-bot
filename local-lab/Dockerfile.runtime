@@ -1,0 +1,20 @@
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY local-lab/package.json local-lab/package-lock.json ./
+RUN npm ci
+COPY local-lab/tsconfig.json ./
+COPY local-lab/src ./src
+RUN npm run check && npm run build && npm prune --omit=dev
+RUN rm -f dist/app.js dist/core.js dist/fake.js dist/http.js dist/*.test.js
+FROM node:22-alpine
+WORKDIR /app
+ARG RELEASE_SHA=unreleased
+ENV RELEASE_SHA=$RELEASE_SHA
+LABEL org.opencontainers.image.revision=$RELEASE_SHA
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY local-lab/package.json ./
+COPY local-lab/migrations ./migrations
+COPY content ./content
+USER node
+CMD ["node", "dist/runtime.js", "service"]

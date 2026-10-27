@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/evidence
+.git
+.audit
+**/.env
+**/.env.*
+**/*.tfstate*
+**/*.tfvars
