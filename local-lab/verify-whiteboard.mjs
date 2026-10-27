@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
+import { connectCdp } from './whiteboard-cdp.mjs';
 const root = path.dirname(fileURLToPath(import.meta.url));
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'gospel-whiteboard-chrome-'));
 const evidence = path.join(root, 'evidence');
@@ -18,29 +19,17 @@ try {
   for (let attempt = 0; !fs.existsSync(portFile) && attempt < 150; attempt++) await delay(100);
   assert.ok(fs.existsSync(portFile), 'Chrome exposed its isolated CDP port');
   const port = fs.readFileSync(portFile, 'utf8').split('\n')[0];
-  const tabs = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
+  const tabs = await (await fetch(`http://127.0.0.1:${port}/json`, { signal: AbortSignal.timeout(5000) })).json();
   ws = new WebSocket(tabs.find(tab => tab.type === 'page').webSocketDebuggerUrl);
-  await new Promise(resolve => ws.addEventListener('open', resolve, { once: true }));
-  let sequence = 0;
-  const pending = new Map();
   const errors = [];
   const externalRequests = [];
+  call = connectCdp(ws);
   ws.addEventListener('message', ({ data }) => {
     const response = JSON.parse(data);
     if (response.method === 'Runtime.exceptionThrown') errors.push(response.params.exceptionDetails);
     if (response.method === 'Network.requestWillBeSent' && /^https?:/.test(response.params.request.url)) externalRequests.push(response.params.request.url);
-    if (response.id) {
-      const request = pending.get(response.id);
-      pending.delete(response.id);
-      if (response.error) request.reject(new Error(JSON.stringify(response.error)));
-      else request.resolve(response.result);
-    }
   });
-  call = (method, params = {}) => new Promise((resolve, reject) => {
-    const id = ++sequence;
-    pending.set(id, { resolve, reject });
-    ws.send(JSON.stringify({ id, method, params }));
-  });
+  await call.ready;
   const evaluate = async expression => {
     const result = await call('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
     assert.ok(!result.exceptionDetails, JSON.stringify(result.exceptionDetails));
@@ -53,7 +42,7 @@ try {
   const scenarios = {
     success: 'The app saves a delivery ID, sends once, then records acceptance. A delivery receipt confirms arrival.',
     reject: 'The fake API proves it rejected the request. The same delivery can be retried safely.',
-    unknown: 'The fake API accepts, then drops the connection. The app holds the delivery as unknown. It checks evidence instead of blindly sending again.',
+    unknown: 'The fake API accepts, then drops the connection. The app holds the delivery as unknown. It cannot recover the lost provider ID and will not send again automatically.',
     repeat: 'Both app instances ask Postgres for the same daily delivery. Only one can claim the send. Both requests return the same delivery ID.'
   };
   const results = [];
@@ -63,6 +52,11 @@ try {
     await evaluate("new Promise(resolve => document.readyState === 'complete' ? resolve(true) : window.addEventListener('load', () => resolve(true), { once: true }))");
     await evaluate('document.fonts.ready.then(() => true)');
     const dimensions = await evaluate('({ viewport: innerWidth, document: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight })');
+    const diagrams = await evaluate(`Object.fromEntries(['svg', '.mobile-board'].map(selector => {
+      const element = document.querySelector(selector);
+      return [selector, Boolean(element?.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && element.getBoundingClientRect().width > 0 && element.getBoundingClientRect().height > 0)];
+    }))`);
+    assert.deepEqual(diagrams, { svg: !mobile, '.mobile-board': mobile }, `${name} shows only its intended diagram`);
     assert.equal(dimensions.viewport, width);
     assert.ok(dimensions.document <= width, `${name} has no horizontal overflow`);
     assert.equal(await evaluate("document.querySelectorAll('[data-mode]').length"), 4);
@@ -84,7 +78,7 @@ try {
   fs.writeFileSync(path.join(evidence, 'whiteboard-qa.json'), `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify(report, null, 2));
 } finally {
-  if (ws?.readyState === WebSocket.OPEN) void call('Browser.close').catch(() => {});
+  if (call && ws?.readyState === WebSocket.OPEN) void call('Browser.close').catch(() => {});
   await Promise.race([exited, delay(3000, undefined, { ref: false })]);
   if (chrome.exitCode === null && chrome.signalCode === null) {
     chrome.kill('SIGTERM');
