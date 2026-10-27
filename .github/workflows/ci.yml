@@ -39,3 +39,21 @@ jobs:
           name: delivery-lab-evidence
           path: local-lab/evidence/
           retention-days: 7
+  production-runtime:
+    name: Production runtime
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - run: node local-lab/verify-runtime.mjs
+      - run: node local-lab/verify-image.mjs
+      - name: Preserve runtime verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: runtime-evidence
+          path: local-lab/evidence/
+          retention-days: 7
