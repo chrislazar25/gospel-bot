@@ -1,0 +1,79 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [staging, production]
+        required: true
+      build_only:
+        description: Publish an initial staging candidate without deploying
+        type: boolean
+        default: false
+      staging_run_id:
+        description: Successful staging Release run ID required for production
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: cloud-${{ inputs.environment }}
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+    env:
+      APP_ENV: ${{ inputs.environment }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      STAGING_RUN: ${{ inputs.staging_run_id }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Require staging for candidate builds
+        if: inputs.build_only && inputs.environment != 'staging'
+        run: exit 1
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: gospel-release-${{ inputs.environment }}@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+      - name: Build and validate staging image
+        if: inputs.environment == 'staging'
+        run: scripts/cloud/build.sh
+      - name: Verify and download tested staging digest
+        if: inputs.environment == 'production' && !inputs.build_only
+        run: |
+          [[ "$STAGING_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GH_REPO/actions/runs/$STAGING_RUN" > run.json
+          jq -e --arg sha "$GITHUB_SHA" '.conclusion == "success" and .event == "workflow_dispatch" and .head_branch == "master" and .head_sha == $sha and .path == ".github/workflows/release.yml"' run.json
+          gh run download "$STAGING_RUN" --repo "$GH_REPO" --name tested-staging-image --dir promotion
+          [[ $(cat promotion/environment.txt) == staging ]]
+          cp promotion/image.txt image.txt
+      - name: Publish initial candidate evidence
+        if: inputs.build_only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: candidate-image
+          path: image.txt
+          retention-days: 30
+      - run: scripts/cloud/release.sh
+        if: ${{ !inputs.build_only }}
+      - name: Record successful staging evidence
+        if: inputs.environment == 'staging' && !inputs.build_only
+        run: printf 'staging\n' > environment.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: inputs.environment == 'staging' && !inputs.build_only
+        with:
+          name: tested-staging-image
+          path: |
+            image.txt
+            environment.txt
+          retention-days: 30

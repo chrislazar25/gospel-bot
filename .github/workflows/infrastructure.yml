@@ -1,0 +1,77 @@
+name: Infrastructure
+on:
+  pull_request:
+    paths: ['infra/**', 'scripts/cloud/**', '.github/workflows/infrastructure.yml', '.github/workflows/release.yml', '.github/workflows/neon.yml']
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [staging, production]
+        required: true
+      operation:
+        type: choice
+        options: [plan, secrets, apply]
+        default: plan
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: cloud-${{ inputs.environment || github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.14.0
+      - run: terraform fmt -check -recursive infra
+      - run: |
+          for dir in infra/bootstrap infra/environment; do
+            terraform -chdir="$dir" init -backend=false
+            terraform -chdir="$dir" validate
+          done
+      - run: bash -n scripts/cloud/*.sh
+      - run: node --check scripts/cloud/neon.mjs
+  manage:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
+    needs: validate
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_VAR_environment: ${{ inputs.environment }}
+      TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+      TF_VAR_image: ${{ vars.INITIAL_IMAGE }}
+      TF_VAR_green_api_url: ${{ vars.GREEN_API_URL }}
+      TF_VAR_green_api_id: ${{ vars.GREEN_API_ID }}
+      TF_VAR_target_chat_id: ${{ vars.TARGET_CHAT_ID }}
+      TF_VAR_monitoring_enabled: ${{ vars.MONITORING_ENABLED || 'false' }}
+      TF_VAR_secret_versions: ${{ vars.SECRET_VERSIONS_JSON }}
+      TF_VAR_notification_email: ${{ vars.NOTIFICATION_EMAIL }}
+      TF_VAR_status_invokers: ${{ vars.STATUS_INVOKERS_JSON }}
+      TF_VAR_region: ${{ vars.GCP_REGION || 'us-central1' }}
+      STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      OPERATION: ${{ inputs.operation }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: gospel-infra-${{ inputs.environment }}@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.14.0
+      - run: terraform -chdir=infra/environment init -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=$TF_VAR_environment"
+      - run: |
+          options=()
+          if [[ "$OPERATION" == secrets ]]; then
+            options=(-target=google_secret_manager_secret.secret -target=google_secret_manager_secret_iam_member.neon_write -target=google_secret_manager_secret_iam_member.neon_read)
+          fi
+          terraform -chdir=infra/environment plan "${options[@]}" -out=deployment.plan
+          if [[ "$OPERATION" != plan ]]; then
+            terraform -chdir=infra/environment apply deployment.plan
+          fi
