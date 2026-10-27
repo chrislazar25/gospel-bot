@@ -98,8 +98,9 @@ terraform -chdir=infra/bootstrap validate
 terraform -chdir=infra/environment init -backend=false
 terraform -chdir=infra/environment validate
 actionlint .github/workflows/infrastructure.yml .github/workflows/neon.yml .github/workflows/release.yml
-bash -n scripts/cloud/bootstrap.sh scripts/cloud/build.sh scripts/cloud/release.sh
+for script in scripts/cloud/*.sh; do bash -n "$script"; done
 node --check scripts/cloud/neon.mjs
+node scripts/cloud/verify-workflows.mjs
 ```
 
 These checks validate syntax and provider schemas without provisioning. They do not prove IAM, Neon API permissions, database connectivity, alert delivery, or cloud executions. Confirm those during the disabled staging setup.

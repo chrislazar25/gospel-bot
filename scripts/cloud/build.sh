@@ -2,7 +2,7 @@
 set -euo pipefail
 : "${GCP_PROJECT_ID:?}"
 : "${APP_ENV:?Set staging or production}"
-[[ "$APP_ENV" == staging || "$APP_ENV" == production ]]
+[[ "$APP_ENV" == staging || "$APP_ENV" == production ]] || exit 1
 : "${GITHUB_SHA:=$(git rev-parse HEAD)}"
 REGION="${REGION:-us-central1}"
 IMAGE="$REGION-docker.pkg.dev/$GCP_PROJECT_ID/gospel/runtime"

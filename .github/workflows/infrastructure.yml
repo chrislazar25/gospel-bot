@@ -32,8 +32,9 @@ jobs:
             terraform -chdir="$dir" init -backend=false
             terraform -chdir="$dir" validate
           done
-      - run: bash -n scripts/cloud/*.sh
+      - run: for script in scripts/cloud/*.sh; do bash -n "$script"; done
       - run: node --check scripts/cloud/neon.mjs
+      - run: node scripts/cloud/verify-workflows.mjs
   manage:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
     needs: validate
