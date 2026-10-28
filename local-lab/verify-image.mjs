@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -12,7 +12,9 @@ const project = `gospel-image-verify-${id}`;
 const image = `gospel-runtime:verify-${id}`;
 const runDir = `${base}/${project}`;
 const tlsDir = `${runDir}/tls`;
-const evidence = { project, image, source, checks: [], cleanup: false };
+const testNow = '2026-01-15T18:29:59.900Z';
+const today = new Date(Date.parse(testNow) + 330 * 60000).toISOString().slice(0, 10);
+const evidence = { project, image, source, testNow, checks: [], cleanup: false };
 mkdirSync(tlsDir, { recursive: true });
 const evidencePath = `${runDir}/evidence.json`;
 const logsPath = `${runDir}/commands.log`;
@@ -42,6 +44,7 @@ try {
   run('openssl', ['req', '-newkey', 'rsa:2048', '-nodes', '-keyout', `${tlsDir}/server.key`, '-out', `${tlsDir}/server.csr`, '-subj', '/CN=db']);
   writeFileSync(`${tlsDir}/extensions.cnf`, 'subjectAltName=DNS:db\nextendedKeyUsage=serverAuth\n');
   run('openssl', ['x509', '-req', '-in', `${tlsDir}/server.csr`, '-CA', `${tlsDir}/ca.crt`, '-CAkey', `${tlsDir}/ca.key`, '-CAcreateserial', '-out', `${tlsDir}/server.crt`, '-days', '1', '-extfile', `${tlsDir}/extensions.cnf`]);
+  writeFileSync(`${runDir}/clock.mjs`, `import { mock } from 'node:test';\nmock.timers.enable({ apis: ['Date'], now: ${Date.parse(testNow)} });\n`);
   writeFileSync(`${runDir}/compose.json`, JSON.stringify({
     services: {
       db: {
@@ -54,8 +57,8 @@ try {
       },
       runtime: {
         image,
-        environment: { APP_ENV: 'staging', DATABASE_URL: 'postgres://verification:isolated-local-only@db:5432/verification', NODE_EXTRA_CA_CERTS: '/tls/ca.crt', SENDING_ENABLED: 'false', PORT: '9127' },
-        volumes: [`${tlsDir}/ca.crt:/tls/ca.crt:ro`],
+        environment: { APP_ENV: 'staging', DATABASE_URL: 'postgres://verification:isolated-local-only@db:5432/verification', NODE_EXTRA_CA_CERTS: '/tls/ca.crt', NODE_OPTIONS: '--import=/verification-clock.mjs', SENDING_ENABLED: 'false', PORT: '9127' },
+        volumes: [`${tlsDir}/ca.crt:/tls/ca.crt:ro`, `${runDir}/clock.mjs:/verification-clock.mjs:ro`],
         networks: ['isolated'],
       },
       ingress: {
@@ -103,8 +106,9 @@ try {
   passed('service health recovers after migrations', after);
   const status = await http(port, '/status');
   assert.equal(status.status, 200);
+  assert.equal(status.body.date, today);
   assert.deepEqual(status.body.deliveries, []);
-  passed('GET status succeeds', status);
+  passed('GET status uses the shared fixed date just before IST midnight', status);
   const post = await http(port, '/send', 'POST');
   assert.equal(post.status, 405);
   passed('POST send route refuses mutation', post);
@@ -117,10 +121,53 @@ try {
   const runtimeEnv = inspect.Config.Env || [];
   assert(!runtimeEnv.some(value => /^GREEN_API_|^TARGET_CHAT_ID=/.test(value)));
   passed('disabled send held with zero provider config', { exit: held.status, output: held.stdout.trim() });
-  const empty = runtime('content-check');
+  const emptyDir = `${runDir}/empty-content`;
+  const approvedDir = `${runDir}/synthetic-content`;
+  mkdirSync(emptyDir);
+  mkdirSync(`${approvedDir}/messages`, { recursive: true });
+  writeFileSync(`${emptyDir}/schedule.json`, JSON.stringify({ schemaVersion: 1, messages: [] }));
+  const dateAfter = days => new Date(Date.parse(today) + days * 86400000).toISOString().slice(0, 10);
+  const messages = Array.from({ length: 14 }, (_, day) => {
+    const date = dateAfter(day);
+    const payload = `Synthetic isolated verification content for ${date}.\n`;
+    const file = `messages/${date}.txt`;
+    writeFileSync(`${approvedDir}/${file}`, payload);
+    return { date, file, sha256: createHash('sha256').update(payload).digest('hex') };
+  });
+  writeFileSync(`${approvedDir}/schedule.json`, JSON.stringify({ schemaVersion: 1, messages }));
+  const contentMount = directory => ['-e', 'CONTENT_DIR=/verification/content', '-v', `${directory}:/verification/content:ro`];
+  const empty = runtime('content-check', true, contentMount(emptyDir));
   assert.equal(empty.status, 1);
   assert.match(empty.stdout, /approved_content_horizon_too_short/);
   passed('empty approved content fails CLI with actionable reason', { exit: empty.status, output: empty.stdout.trim() });
+  const valid = runtime('content-check', true, contentMount(approvedDir));
+  assert.equal(valid.status, 0);
+  assert.match(valid.stdout, /"event":"content_valid"/);
+  assert.match(valid.stdout, /"contentDaysRemaining":14/);
+  assert.match(valid.stdout, new RegExp(`"date":"${today}"`));
+  passed('fourteen dated synthetic content days pass CLI', { exit: valid.status, output: valid.stdout.trim() });
+  const otherTarget = '111111111111@g.us';
+  const target = '222222222222@g.us';
+  const payload = 'Synthetic isolated confirmed delivery.';
+  const payloadHash = createHash('sha256').update(payload).digest('hex');
+  compose(['exec', '-T', 'db', 'psql', '-v', 'ON_ERROR_STOP=1', '-U', 'verification', '-d', 'verification', '-c',
+    `INSERT INTO deliveries(id,channel,target,date,payload,payload_hash,status,attempts,provider_id,evidence) VALUES ('${randomUUID()}','green-api','${otherTarget}','${today}','${payload}','${payloadHash}','confirmed',1,'isolated-confirmed-id','synthetic image verification')`]);
+  const policy = [...contentMount(approvedDir), '-e', `TARGET_CHAT_ID=${target}`, '-e', 'SENDING_ENABLED=true', '-e', 'DELIVERY_DEADLINE_MINUTE=0'];
+  const missing = runtime('check', true, [...policy, '-e', `FIRST_SEND_DATE=${today}`]);
+  assert.equal(missing.status, 1);
+  assert.match(missing.stdout, /"event":"delivery_check"[^\n]*"status":"missing"/);
+  assert.match(missing.stdout, /"event":"delivery_problem"/);
+  passed('check reports the configured target missing despite another confirmed group', { exit: missing.status, output: missing.stdout.trim() });
+  const future = runtime('check', true, [...policy, '-e', `FIRST_SEND_DATE=${dateAfter(1)}`]);
+  assert.equal(future.status, 0);
+  assert.match(future.stdout, /"event":"delivery_check"[^\n]*"status":"held"/);
+  assert.doesNotMatch(future.stdout, /"event":"delivery_problem"/);
+  passed('check holds the configured target before its first send date', { exit: future.status, output: future.stdout.trim() });
+  const reconciled = runtime('reconcile', true, ['-e', 'CONTENT_DIR=/does-not-exist', '-e', `TARGET_CHAT_ID=${target}`,
+    '-e', 'GREEN_API_URL=https://api.green-api.com', '-e', 'GREEN_API_ID=0', '-e', 'GREEN_API_TOKEN=isolated-synthetic-token']);
+  assert.equal(reconciled.status, 0);
+  assert.match(reconciled.stdout, /"event":"reconciliation_complete","checked":0,"confirmed":0/);
+  passed('reconcile with no accepted rows succeeds without content', { exit: reconciled.status, output: reconciled.stdout.trim() });
   evidence.result = 'PASS';
 } catch (error) {
   evidence.result = 'FAIL';

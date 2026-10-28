@@ -1,10 +1,11 @@
 FROM node:22-alpine
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY local-lab/package.json local-lab/package-lock.json ./
 RUN npm ci
-COPY tsconfig.json ./
-COPY src ./src
-COPY migrations ./migrations
+COPY local-lab/tsconfig.json ./
+COPY local-lab/src ./src
+COPY local-lab/migrations ./migrations
+COPY scripts/cloud/neon-role.mjs scripts/cloud/neon-role.test.mjs ./scripts/cloud/
 RUN npm run check && npm run build
 USER node
-CMD ["node", "--test", "dist/runtime.unit.test.js", "dist/runtime.integration.test.js"]
+CMD ["node", "--test", "dist/runtime.unit.test.js", "dist/runtime.integration.test.js", "scripts/cloud/neon-role.test.mjs"]

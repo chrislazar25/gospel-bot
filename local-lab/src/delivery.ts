@@ -45,8 +45,10 @@ export function createDeliveryService(options: {
   async function reconcile(id: string) {
     const row = await get(id);
     if (row.status !== 'accepted') return row;
+    const checking = (await rows("UPDATE deliveries SET evidence='receipt check started' WHERE id=$1 AND attempts=$2 AND status='accepted' RETURNING *", [id, row.attempts]))[0];
+    if (!checking) return get(id);
     try {
-      const receipt = await provider.receipt(row);
+      const receipt = await provider.receipt(checking);
       if (receipt.kind === 'receipt' && receipt.providerId === row.provider_id && receipt.status !== 'sent') {
         const status = receipt.status === 'failed' ? 'failed' : 'confirmed';
         await rows("UPDATE deliveries SET status=$3, evidence=$4 WHERE id=$1 AND attempts=$2 AND status='accepted' RETURNING *", [id, row.attempts, status, `receipt:${receipt.status}`]);
@@ -55,7 +57,10 @@ export function createDeliveryService(options: {
     return get(id);
   }
   async function reconcileAccepted(limit = 50) {
-    const accepted = await rows("SELECT * FROM deliveries WHERE channel=$1 AND target=$2 AND status='accepted' ORDER BY date LIMIT $3", [channel, target, limit]);
+    const accepted = await rows(`SELECT d.* FROM deliveries d
+      LEFT JOIN (SELECT delivery_id,max(recorded_at) AS last_activity FROM delivery_evidence GROUP BY delivery_id) e ON e.delivery_id=d.id
+      WHERE d.channel=$1 AND d.target=$2 AND d.status='accepted'
+      ORDER BY e.last_activity NULLS FIRST,d.date,d.id LIMIT $3`, [channel, target, limit]);
     const results: Delivery[] = [];
     for (const row of accepted) results.push(await reconcile(row.id));
     return results;

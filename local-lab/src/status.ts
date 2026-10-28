@@ -4,8 +4,8 @@ import { z } from 'zod';
 import { deliverySchema, istDate } from './delivery.js';
 import { checkSchema } from './migrate.js';
 
-export async function readStatus(db: Pool, date: string) {
-  const result = await db.query<Record<string, unknown>>('SELECT * FROM deliveries WHERE date=$1 ORDER BY created_at', [date]);
+export async function readStatus(db: Pool, date: string, target: string | null) {
+  const result = await db.query<Record<string, unknown>>("SELECT * FROM deliveries WHERE date=$1 AND channel='green-api' AND ($2::text IS NULL OR target=$2) ORDER BY created_at", [date, target]);
   return result.rows.map(value => {
     const row = deliverySchema.parse(value);
     return { id: row.id, date: row.date, status: row.status, attempts: row.attempts, payloadHash: row.payload_hash, evidence: row.evidence };
@@ -24,7 +24,7 @@ export function createStatusServer(db: Pool, revision: string) {
       }
       if (request.url === '/status') {
         const date = istDate(new Date());
-        return respond(200, { date, revision, deliveries: await readStatus(db, date) });
+        return respond(200, { date, revision, deliveries: await readStatus(db, date, null) });
       }
       if (request.url?.startsWith('/get-status/')) {
         const id = z.uuid().parse(request.url.slice('/get-status/'.length));

@@ -63,24 +63,25 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv) {
       emit('sending_held', { date });
       return;
     }
-    const content = await loadContent(config.CONTENT_DIR);
+    const target = z.string().regex(/^\d+(?:-\d+)?@g\.us$/).parse(env.TARGET_CHAT_ID);
     if (command === 'check') {
-      const deliveries = await readStatus(db, date);
+      const content = await loadContent(config.CONTENT_DIR);
+      const deliveries = await readStatus(db, date, target);
       const remaining = content.daysRemaining(date);
-      const status = deliveries[0]?.status ?? (policy.SENDING_ENABLED ? 'missing' : 'held');
+      const eligible = policy.SENDING_ENABLED && policy.FIRST_SEND_DATE !== undefined && date >= policy.FIRST_SEND_DATE;
+      const status = deliveries[0]?.status ?? (eligible ? 'missing' : 'held');
       emit('delivery_check', { date, status, enabled: policy.SENDING_ENABLED, contentDaysRemaining: remaining, revision: config.RELEASE_SHA });
       if (remaining < 7) emit('content_warning', { date, contentDaysRemaining: remaining }, 'WARNING');
       const ist = new Date(Date.now() + 330 * 60000);
       const minute = ist.getUTCHours() * 60 + ist.getUTCMinutes();
-      if (deliveries.some(row => row.status === 'unknown' || row.status === 'failed') || (policy.SENDING_ENABLED && minute >= policy.DELIVERY_DEADLINE_MINUTE && status !== 'confirmed')) {
+      if (deliveries.some(row => row.status === 'unknown' || row.status === 'failed') || (eligible && minute >= policy.DELIVERY_DEADLINE_MINUTE && status !== 'confirmed')) {
         emit('delivery_problem', { date, status }, 'ERROR');
         throw new Error('delivery_requires_attention');
       }
       return;
     }
     const green = greenConfigSchema.parse({ url: env.GREEN_API_URL, instanceId: env.GREEN_API_ID, token: env.GREEN_API_TOKEN });
-    const target = z.string().regex(/^\d+(?:-\d+)?@g\.us$/).parse(env.TARGET_CHAT_ID);
-    const service = createDeliveryService({ db, channel: 'green-api', target, now: async () => new Date(), message: content.message, provider: createGreenApi(green), revision: config.RELEASE_SHA,
+    const service = createDeliveryService({ db, channel: 'green-api', target, now: async () => new Date(), message: async day => (await loadContent(config.CONTENT_DIR)).message(day), provider: createGreenApi(green), revision: config.RELEASE_SHA,
       policy: { kind: 'scheduled', enabled: policy.SENDING_ENABLED, firstDate: policy.FIRST_SEND_DATE, startMinute: policy.SEND_WINDOW_START_MINUTE, endMinute: policy.SEND_WINDOW_END_MINUTE } });
     if (command === 'send') {
       const delivery = await service.sendToday();

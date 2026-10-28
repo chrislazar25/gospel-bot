@@ -29,7 +29,7 @@ jobs:
         working-directory: local-lab
       - run: npm run check
         working-directory: local-lab
-      - run: node --test local-lab/whiteboard-cdp.test.mjs
+      - run: node --test local-lab/whiteboard-cdp.test.mjs local-lab/whiteboard-startup.test.mjs
       - run: node local-lab/verify.mjs all
       - run: node local-lab/verify-lifecycle.mjs
       - name: Preserve local simulation evidence

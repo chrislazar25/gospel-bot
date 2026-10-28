@@ -5,7 +5,7 @@ set -euo pipefail
 [[ "$APP_ENV" == staging || "$APP_ENV" == production ]] || exit 1
 REGION="${REGION:-us-central1}"
 IMAGE=$(cat image.txt)
-[[ "$IMAGE" =~ ^$REGION-docker\.pkg\.dev/$GCP_PROJECT_ID/gospel/runtime@sha256:[a-f0-9]{64}$ ]]
+[[ "$IMAGE" =~ ^$REGION-docker\.pkg\.dev/$GCP_PROJECT_ID/gospel/runtime@sha256:[a-f0-9]{64}$ ]] || exit 1
 PREFIX="gospel-$APP_ENV"
 gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
 docker pull "$IMAGE"
@@ -20,9 +20,5 @@ for task in send reconcile check; do
 done
 gcloud run services update "$PREFIX-status" --image="$IMAGE" --region="$REGION" --project="$GCP_PROJECT_ID" --update-env-vars=SENDING_ENABLED=false --quiet
 URL=$(gcloud run services describe "$PREFIX-status" --region="$REGION" --project="$GCP_PROJECT_ID" --format='value(status.url)')
-UNAUTHENTICATED=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$URL/health")
-[[ "$UNAUTHENTICATED" == 401 || "$UNAUTHENTICATED" == 403 ]] || exit 1
-TOKEN=$(gcloud auth print-identity-token --audiences="$URL")
-printf '::add-mask::%s\n' "$TOKEN"
-curl --fail --silent --show-error --retry 3 --retry-all-errors -H "Authorization: Bearer $TOKEN" "$URL/health"
-gcloud run jobs execute "$PREFIX-check" --wait --region="$REGION" --project="$GCP_PROJECT_ID" --quiet
+[[ "$URL" =~ ^https://[a-zA-Z0-9.-]+$ ]] || exit 1
+printf 'status_url=%s\n' "$URL" >> "${GITHUB_OUTPUT:?}"
