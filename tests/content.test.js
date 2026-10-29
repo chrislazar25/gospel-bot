@@ -22,6 +22,9 @@ function snapshot(start = '2026-10-30') {
     calendar: { date, celebration: { name: 'Current calendar label' } }, calendarHold: null,
   })) };
 }
+const messagesDirectory = path.join(root, 'content/messages');
+const approvedState = () => sha256(JSON.stringify([sha256(fs.readFileSync(path.join(root, 'gospel_messages.json'))),
+  ...fs.readdirSync(messagesDirectory).sort().map(file => [file, sha256(fs.readFileSync(path.join(messagesDirectory, file)))])]));
 function draft(feed = snapshot()) { return draftBatch({ startDate: '2026-10-30', archiveBytes, archivePath: 'fixture.json', snapshot: feed }); }
 
 test('whole citation must fit the complete disjoint union', () => {
@@ -214,8 +217,7 @@ test('draft output repeats safely, refuses different bytes, and cannot write app
   const directory = temporary(t);
   const output = path.join(directory, 'draft');
   const batch = draft();
-  const approvedPaths = ['gospel_messages.json', 'content/schedule.json'];
-  const before = approvedPaths.map(file => sha256(fs.readFileSync(path.join(root, file))));
+  const before = approvedState();
   writeDraft(output, batch, snapshot());
   writeDraft(output, batch, snapshot());
   const stored = JSON.parse(fs.readFileSync(path.join(output, 'draft-batch.json')));
@@ -228,7 +230,7 @@ test('draft output repeats safely, refuses different bytes, and cannot write app
   const link = path.join(directory, 'linked-content');
   fs.symlinkSync(path.join(root, 'content'), link);
   assert.throws(() => writeDraft(path.join(link, 'review-test'), batch, snapshot()), /approved content/);
-  assert.deepEqual(approvedPaths.map(file => sha256(fs.readFileSync(path.join(root, file)))), before);
+  assert.equal(approvedState(), before);
 });
 
 test('offline CLI creates fourteen review dates without changing approved files', t => {
