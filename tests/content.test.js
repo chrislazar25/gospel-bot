@@ -90,6 +90,25 @@ test('import filters exact sender before detection and preserves duplicate sourc
   assert.throws(() => collectMessages('unsupported export', 'Dad'), /No supported/);
 });
 
+test('import reads citations written in mixed case or with spaces', () => {
+  for (const [written, stored, reading] of [
+    ['Lk(14:33)', 'Lk(14:33)', 'Luke 14:25-33'],
+    ['LK (14:23-24)', 'LK(14:23-24)', 'Luke 14:15-24'],
+    ['MT (17: 25-26)', 'MT(17: 25-26)', 'Matthew 17:22-27'],
+    ['(Matthew 22:37-39)', 'Matthew(22:37-39)', 'Matthew 22:34-40'],
+    ['(LK13:12-13)', 'LK(13:12-13)', 'Luke 13:10-17'],
+    ['MK14:24-25', 'MK(14:24-25)', 'Mark 14:12-26'],
+  ]) {
+    const text = `[30/10/26, 9:00 AM] Dad: Gospel Msg (Fixture) Synthetic words for a parser fixture. ${written} Closing words.`;
+    const [entry] = collectMessages(text, 'Dad').messages;
+    assert.equal(entry.citation, stored);
+    assert.equal(entry.title, 'Fixture');
+    assert.equal(entry.verse, 'Synthetic words for a parser fixture.');
+    assert.equal(entry.closing, 'Closing words.');
+    assert.equal(citationMatchesReading(entry.citation, parseApiRef(reading)), true, written);
+  }
+});
+
 test('importing parser executes no filesystem reads or writes and emits no logs', () => {
   const code = `const fs = require('node:fs'); const Module = require('node:module'); require('node:crypto');
     const filename = require('node:path').resolve('parse_gospel.js'); const source = fs.readFileSync(filename, 'utf8');
