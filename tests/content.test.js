@@ -331,3 +331,16 @@ test('committed archive stores the fields the importer reads from each message',
     assert.deepEqual([record.citation, record.verse, record.closing], [fields.citation, fields.verse, fields.closing], `source #${index}`);
   }
 });
+
+test('published messages cover consecutive dates and decode as UTF-8 text', () => {
+  const files = fs.readdirSync(messagesDirectory).filter(file => file !== '.gitkeep').sort();
+  files.forEach((file, index) => {
+    assert.match(file, /^\d{4}-\d{2}-\d{2}\.txt$/);
+    if (index) {
+      const expected = new Date(Date.parse(files[index - 1].slice(0, 10)) + 86400000).toISOString().slice(0, 10);
+      assert.equal(file.slice(0, 10), expected, `content/messages is missing ${expected}.txt`);
+    }
+    const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(fs.readFileSync(path.join(messagesDirectory, file)));
+    assert.ok(text.trim() && !text.startsWith('﻿'), `${file} is empty or starts with a byte order mark`);
+  });
+});
