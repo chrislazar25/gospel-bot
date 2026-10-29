@@ -14,6 +14,11 @@ on:
         description: Run the isolated staging smoke job without an application release
         type: boolean
         default: false
+      canary:
+        description: Publish or execute the separate private staging canary
+        type: choice
+        options: [none, publish, execute]
+        default: none
       staging_run_id:
         description: Successful staging Release run ID required for production
         type: string
@@ -24,7 +29,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   release:
-    if: github.ref == 'refs/heads/master' && !inputs.smoke_only
+    if: github.ref == 'refs/heads/master' && !inputs.smoke_only && (inputs.canary == 'none' || inputs.canary == '')
     environment: ${{ inputs.environment }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -94,7 +99,7 @@ jobs:
             environment.txt
           retention-days: 30
   cloud-smoke:
-    if: github.ref == 'refs/heads/master' && inputs.smoke_only
+    if: github.ref == 'refs/heads/master' && inputs.smoke_only && (inputs.canary == 'none' || inputs.canary == '')
     environment: staging
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -125,4 +130,40 @@ jobs:
         with:
           name: cloud-smoke-evidence
           path: cloud-smoke-evidence/
+          retention-days: 30
+  canary:
+    if: github.ref == 'refs/heads/master' && (inputs.canary == 'publish' || inputs.canary == 'execute')
+    environment: staging
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      APP_ENV: ${{ inputs.environment }}
+      BUILD_ONLY: ${{ inputs.build_only }}
+      SMOKE_ONLY: ${{ inputs.smoke_only }}
+      STAGING_RUN: ${{ inputs.staging_run_id }}
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+      CANARY_IMAGE: ${{ vars.CANARY_IMAGE }}
+      CANARY_REVISION: ${{ vars.CANARY_REVISION }}
+      CANARY_ACTION: ${{ inputs.canary }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Validate staging canary options before authentication
+        run: scripts/cloud/canary.sh validate "$CANARY_ACTION"
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: gospel-release-staging@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+      - name: Run the bounded canary command
+        run: scripts/cloud/canary.sh "$CANARY_ACTION"
+      - name: Preserve sanitized canary metadata
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: canary-evidence
+          path: canary-evidence/
           retention-days: 30
