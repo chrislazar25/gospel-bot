@@ -37,11 +37,13 @@ inspect_image() {
   docker image inspect --format '{{json .Config.Labels}}' "$1" >"$WORK/labels.json" 2>"$WORK/error" || fail
   jq -e --arg sha "$SHA" '.["org.opencontainers.image.revision"] == $sha and .["io.gospel.image-purpose"] == "canary"' "$WORK/labels.json" >/dev/null || fail
 }
+if [[ "$ACTION" == publish && -n "$(git status --porcelain)" ]]; then
+  echo 'Commit source changes before publishing' >&2; exit 1
+fi
+mkdir -p "$EVIDENCE"
+rm -f "$EVIDENCE/success.json" "$EVIDENCE/execution.json" "$EVIDENCE/publication.json" "$EVIDENCE/canary-image.txt" "$EVIDENCE/canary-revision.txt"
+gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet >"$WORK/auth.log" 2>&1 || fail
 if [[ "$ACTION" == publish ]]; then
-  [[ -z "$(git status --porcelain)" ]] || { echo 'Commit source changes before publishing' >&2; exit 1; }
-  mkdir -p "$EVIDENCE"
-  rm -f "$EVIDENCE/success.json" "$EVIDENCE/execution.json" "$EVIDENCE/publication.json" "$EVIDENCE/canary-image.txt" "$EVIDENCE/canary-revision.txt"
-  gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet >"$WORK/auth.log" 2>&1 || fail
   if DIGEST=$(gcloud artifacts docker images describe "$REPOSITORY:$SHA" --project="$GCP_PROJECT_ID" --format='value(image_summary.digest)' 2>"$WORK/error"); then
     [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || fail
   else
@@ -60,8 +62,6 @@ if [[ "$ACTION" == publish ]]; then
   cat "$EVIDENCE/publication.json"
   exit
 fi
-mkdir -p "$EVIDENCE"
-rm -f "$EVIDENCE/success.json" "$EVIDENCE/execution.json"
 inspect_image "$IMAGE"
 gcloud run jobs update "$JOB" --image="$IMAGE" --command=node --args=dist/canary.js --region="$REGION" --project="$GCP_PROJECT_ID" --quiet >"$WORK/update.log" 2>&1 || fail
 EXECUTION=$(gcloud run jobs execute "$JOB" --async --region="$REGION" --project="$GCP_PROJECT_ID" --format='value(metadata.name)' 2>"$WORK/error") || fail
