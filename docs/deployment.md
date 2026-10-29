@@ -1,11 +1,11 @@
 # Set up staging and production
 
-This guide creates two Neon projects and disabled Cloud Run deployments in one billed GCP project. It does not activate delivery. No cloud resources have been provisioned by the local validation.
+This guide connects existing Neon databases to disabled Cloud Run deployments in one billed GCP project. It does not activate delivery. No cloud resources have been provisioned by the local validation.
 
 ## Prepare the accounts
 
 1. Create or select a GCP project with billing enabled. Record its project ID.
-2. Create a Neon account and organization in the [Neon console](https://console.neon.tech). Create an organization API key. The script cannot create your account or accept billing terms.
+2. Select an existing project, branch, and database in the [Neon console](https://console.neon.tech) for each environment. Record their IDs and the database name. Create an API key that can access the selected organization. The workflow never creates or renames Neon resources.
 3. Install Terraform 1.14, the Google Cloud CLI, and GitHub CLI on your computer. Authenticate Google Cloud CLI and Application Default Credentials as an administrator. The bootstrap script uses existing credentials and never opens a login.
 4. Protect the GitHub `master` branch. Require pull requests, CI, and review. Disable force pushes. WIF rejects unprotected refs and all branches other than `master`.
 5. Create GitHub environments named `staging` and `production`. Restrict both to `master`. Require an independent production reviewer and prevent self-review. Add a staging reviewer if desired.
@@ -40,7 +40,9 @@ Add these variables to each GitHub environment. Use the same GCP project, WIF pr
 | `WIF_PROVIDER` | Bootstrap `workload_identity_provider` output |
 | `TF_STATE_BUCKET` | Bootstrap `state_bucket` output |
 | `NEON_ORG_ID` | Neon organization ID |
-| `NEON_REGION` | `aws-us-east-2` or a supported nearby Neon region |
+| `NEON_PROJECT_ID` | Existing Neon project ID |
+| `NEON_BRANCH_ID` | Exact existing branch ID, not its display name |
+| `NEON_DATABASE_NAME` | Existing database name, such as `neondb` |
 | `GREEN_API_URL` | Instance-assigned `https://HOST.api.green-api.com` URL |
 | `GREEN_API_ID` | Instance ID |
 | `TARGET_CHAT_ID` | Approved WhatsApp chat ID |
@@ -50,7 +52,13 @@ Add these variables to each GitHub environment. Use the same GCP project, WIF pr
 | `MONITORING_ENABLED` | Leave unset or `false` until the separate activation task validates recurring checks and notification delivery |
 | `INITIAL_IMAGE` | Immutable image reference from the next step |
 
+Use separate Neon projects or clean branches for staging and production. Create the branches before app roles exist. A later staging clone includes its roles and deliberately fails provisioning if production has no corresponding stored credentials. Different databases on one branch share Postgres roles and cannot isolate these managed credentials.
+
 Add `NEON_API_KEY` as an environment secret. Do not add database passwords, connection URLs, or the GREEN-API token as Terraform variables.
+
+Run **Neon databases** on `master` with operation `inspect` first. Inspection is the default. It needs only the Neon key and the four Neon variables. It reads project, branch, database, and endpoint metadata, then reports identifiers, names, region, actual database owner, and the enabled read/write endpoint. Check the report against the intended environment. Inspection does not request connection credentials, authenticate to GCP, connect to Postgres, or change resources. A mismatched organization or branch, missing database, or ambiguous endpoint stops the run.
+
+For local inspection, install dependencies with `npm ci --prefix local-lab` and supply the same five Neon environment values through your secret manager. Run `node scripts/cloud/neon.mjs` or append `inspect`. Never paste the key or a connection URL into a command or logs.
 
 ## Build the initial image and create secrets
 
@@ -62,7 +70,13 @@ Candidate builds cannot run for production. Their artifacts are not promotion ev
 Cloud workflows share one concurrency group per environment so infrastructure, Neon provisioning, and release cannot overlap. For each environment, run the following GitHub Actions in order on `master`.
 
 1. Run **Infrastructure** with operation `secrets`. This creates empty secret containers and Neon account permissions. It deliberately targets only these prerequisites.
-2. Run **Neon databases**. The script finds or creates `gospel-staging` or `gospel-production` in the specified organization. It saves the owner URL, creates separate application and status SQL roles, and writes their URLs directly to Secret Manager. It does not print the URLs or run schema migrations. Reruns preserve application passwords and reconcile grants. If project creation succeeds but a later step fails, the next run finds the project by name. Duplicate names fail for manual review. Do not rename these projects outside this workflow.
+2. After checking the inspection report, run **Neon databases** with operation `provision-existing`. All three `gospel-ENV-{migration-database,database,status-database}` secret containers must already exist. The Neon identity must be able to list and access their versions.
+
+   The workflow rechecks the selected metadata and uses the database's actual owner. It validates every stored URL against the direct endpoint, database, role, and TLS policy before any write. It rejects an unrelated public table, conflicting schema ownership or migration history, and a managed role without its stored credential. It accepts an empty public schema or the three app tables with the expected columns, types, and migration checksum.
+
+   On success, it saves the owner URL and provisions `gospel_runtime` and `gospel_status` with separate secrets. New managed passwords are saved before SQL so interrupted runs can recover them. Reruns reuse stored managed passwords and reconcile grants. The owner password is never reset. No schema migrations run here.
+
+   Provisioning runs only in the `master` dispatch job of `neon.yml`. The CLI rejects local provisioning and other workflow contexts before API access. Shared environment workflow concurrency serializes secret writes. A database advisory lock also protects role reconciliation for callers targeting the same database.
 3. Enter the GREEN-API token into the environment's `gospel-ENV-green-token` secret using the GCP Secret Manager console. Avoid shell history and logs. Routine provisioning preserves role passwords and existing version values. Coordinate any deliberate rotation with a reviewed numeric-version update before reenabling schedules. Keep earlier versions enabled for rollback. Image rollback alone does not change pinned secret versions. The four IDs are `gospel-ENV-database`, `gospel-ENV-migration-database`, `gospel-ENV-status-database`, and `gospel-ENV-green-token`.
 4. Check each secret's numeric version in Secret Manager and update `SECRET_VERSIONS_JSON` to those versions. Cloud Run pins these values and never resolves `latest`. Run **Infrastructure** with operation `plan`. Review the plan. Run it again with operation `apply` after review. The apply run prints a fresh plan before applying that exact saved plan. GitHub environment approval gates the job before it obtains cloud credentials.
 5. Verify the Cloud Scheduler jobs remain paused and every Cloud Run task has `SENDING_ENABLED=false`.
@@ -99,10 +113,12 @@ terraform -chdir=infra/environment init -backend=false
 terraform -chdir=infra/environment validate
 actionlint .github/workflows/infrastructure.yml .github/workflows/neon.yml .github/workflows/release.yml
 for script in scripts/cloud/*.sh; do bash -n "$script"; done
-node --check scripts/cloud/neon.mjs
+for module in scripts/cloud/neon*.mjs; do node --check "$module"; done
+npm ci --prefix local-lab
+node --test scripts/cloud/neon-operation.test.mjs
 node scripts/cloud/verify-workflows.mjs
 ```
 
 These checks validate syntax and provider schemas without provisioning. They do not prove IAM, Neon API permissions, database connectivity, alert delivery, or cloud executions. Confirm those during the disabled staging setup.
 
-The implementation follows the official [Cloud Run job scheduling guide](https://docs.cloud.google.com/run/docs/execute/jobs-on-schedule), [Neon project API](https://neon.com/docs/reference/api/projects/create-project), and [Monitoring alert policy schema](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy).
+The implementation follows the official [Cloud Run job scheduling guide](https://docs.cloud.google.com/run/docs/execute/jobs-on-schedule), [Neon project metadata API](https://neon.com/docs/reference/api/projects/get-project), and [Monitoring alert policy schema](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/monitoring_alert_policy).

@@ -33,7 +33,7 @@ jobs:
             terraform -chdir="$dir" validate
           done
       - run: for script in scripts/cloud/*.sh; do bash -n "$script"; done
-      - run: node --check scripts/cloud/neon.mjs
+      - run: for module in scripts/cloud/neon*.mjs; do node --check "$module"; done
       - run: node scripts/cloud/verify-workflows.mjs
   manage:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' && inputs.operation != 'smoke-plan' && inputs.operation != 'smoke-apply'

@@ -6,14 +6,42 @@ on:
         type: choice
         options: [staging, production]
         required: true
+      operation:
+        type: choice
+        options: [inspect, provision-existing]
+        default: inspect
+        required: true
 permissions:
   contents: read
 concurrency:
   group: cloud-${{ inputs.environment }}
   cancel-in-progress: false
 jobs:
-  provision:
-    if: github.ref == 'refs/heads/master'
+  inspect:
+    if: github.ref == 'refs/heads/master' && inputs.operation == 'inspect'
+    environment: ${{ inputs.environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: local-lab/package-lock.json
+      - run: npm ci
+        working-directory: local-lab
+      - run: node scripts/cloud/neon.mjs inspect
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_ORG_ID: ${{ vars.NEON_ORG_ID }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_BRANCH_ID: ${{ vars.NEON_BRANCH_ID }}
+          NEON_DATABASE_NAME: ${{ vars.NEON_DATABASE_NAME }}
+  provision-existing:
+    if: github.ref == 'refs/heads/master' && inputs.operation == 'provision-existing'
     environment: ${{ inputs.environment }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -34,10 +62,12 @@ jobs:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: gospel-neon-${{ inputs.environment }}@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
       - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
-      - run: node scripts/cloud/neon.mjs
+      - run: node scripts/cloud/neon.mjs provision-existing
         env:
           APP_ENV: ${{ inputs.environment }}
           GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           NEON_ORG_ID: ${{ vars.NEON_ORG_ID }}
-          NEON_REGION: ${{ vars.NEON_REGION || 'aws-us-east-2' }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_BRANCH_ID: ${{ vars.NEON_BRANCH_ID }}
+          NEON_DATABASE_NAME: ${{ vars.NEON_DATABASE_NAME }}

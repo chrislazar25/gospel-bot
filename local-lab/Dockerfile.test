@@ -5,7 +5,9 @@ RUN npm ci
 COPY local-lab/tsconfig.json ./
 COPY local-lab/src ./src
 COPY local-lab/migrations ./migrations
-COPY scripts/cloud/neon-role.mjs scripts/cloud/neon-role.test.mjs ./scripts/cloud/
+COPY scripts/cloud/neon-role.mjs scripts/cloud/neon-role.test.mjs scripts/cloud/neon-operation.mjs scripts/cloud/neon-existing.pg.test.mjs ./scripts/cloud/
+COPY local-lab/package.json ./local-lab/package.json
+COPY local-lab/migrations ./local-lab/migrations
 RUN npm run check && npm run build
 USER node
-CMD ["node", "--test", "dist/runtime.unit.test.js", "dist/runtime.integration.test.js", "scripts/cloud/neon-role.test.mjs"]
+CMD ["sh", "-c", "node --test dist/runtime.unit.test.js dist/runtime.integration.test.js scripts/cloud/neon-role.test.mjs && node scripts/cloud/neon-existing.pg.test.mjs"]
