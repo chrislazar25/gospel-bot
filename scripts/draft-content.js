@@ -4,6 +4,7 @@ const { parseReference, citationMatchesReading } = require('../gospel_matcher');
 const EDITORIAL_FINDINGS = require('./draft-content.findings.json');
 
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
+const editorialKey = text => sha256(text.replace(/\s+/gu, ' ').trim());
 const REPOSITORY = path.resolve(__dirname, '..');
 const FEED = 'https://cpbjr.github.io/catholic-readings-api';
 
@@ -86,7 +87,7 @@ function candidateFor(message, index, archiveHash, reading, calendar) {
   const contextFields = ['title', 'verse', 'closing'].filter(field => typeof message[field] === 'string' && message[field].trim());
   const calendarLabelExact = Boolean(calendar && normalized(message.liturgicalLabel) === normalized(calendar.celebration.name));
   const sourceOccurrences = Array.isArray(message.sourceOccurrences) ? message.sourceOccurrences : [];
-  const editorialFindings = EDITORIAL_FINDINGS[sha256(message.fullText)] || [];
+  const editorialFindings = EDITORIAL_FINDINGS[editorialKey(message.fullText)] || [];
   return {
     sourceId: `${archiveHash}:${index}`, archiveIndex: index, archiveDate: message.isoDate,
     citation: message.citation, originalLabel: message.liturgicalLabel || null,

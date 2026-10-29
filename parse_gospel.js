@@ -46,7 +46,7 @@ const GOSPEL_INDICATORS = [
 ];
 
 function isGospelMessage(msg) {
-  const t = msg.text;
+  const t = msg.text.replace(/\s+/gu, ' ').trim();
   if (SKIP_PATTERNS.some(p => p.test(t))) return false;
   if (t.split(' ').length < 8) return false;  // too short to be a verse
   return GOSPEL_INDICATORS.some(p => p.test(t));

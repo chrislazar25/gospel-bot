@@ -229,6 +229,23 @@ test('annotated payload remains held after moving records or exporting another a
   assert.equal(sha256(fs.readFileSync(path.join(root, 'gospel_messages.json'))), before);
 });
 
+test('quotation hold survives collecting exports with changed whitespace and exact payload bytes', () => {
+  const original = JSON.parse(fs.readFileSync(path.join(root, 'gospel_messages.json')));
+  const payload = original.messages.find(record => record.title.includes('Feeding Five Thousand') && record.citation === 'LK(14:19)').fullText;
+  const feed = snapshot();
+  feed.days[0].readings.readings.gospel = 'Luke 14:15-24';
+  for (const variant of [payload + '\n', payload.replace(/ /g, '\t ') + '\r\n']) {
+    const collected = collectMessages('[03/11/26, 9:00 AM] Dad: ' + variant, 'Dad');
+    assert.equal(collected.messages[0].fullText, variant);
+    const batch = draftBatch({ startDate: '2026-10-30', archiveBytes: Buffer.from(JSON.stringify(collected)), archivePath: 'collected.json', snapshot: feed });
+    const held = batch.days[0];
+    assert.equal(held.reason, 'known-quote-citation-mismatch');
+    assert.equal(held.proposed, null);
+    assert.equal(held.heldCandidates[0].payload, variant);
+    assert.equal(held.heldCandidates[0].payloadSha256, sha256(variant));
+  }
+});
+
 test('committed review packet replays exactly and every displayed payload matches its archive source', () => {
   const directory = path.join(root, 'drafts/2026-10-30_2026-11-12');
   const stored = JSON.parse(fs.readFileSync(path.join(directory, 'draft-batch.json')));
