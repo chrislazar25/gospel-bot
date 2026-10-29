@@ -2,6 +2,8 @@
 
 Every batch requires human review. The draft tool never approves or sends a message. The first packet is [the October 30 through November 12 preview](../drafts/2026-10-30_2026-11-12/preview.md).
 
+For that packet, read the [revised messages and your date-by-date feedback](../drafts/2026-10-30_2026-11-12/editorial-review.md) first. It contains proposed corrections and clearly labelled new reflections. The generated preview remains the original archive shortlist for comparison. Editorial proposals do not approve content or clear the generator's holds.
+
 The packet contains eleven candidate dates, two held dates, and one archive gap. Twelve dates have archive citations mechanically contained in the reading. November 1 uses `Matthew 5:1-12a`, which the whole-verse model holds as unsupported. November 3 has a known quotation and citation mismatch. November 6 has no archive match for `Luke 16:1-8`.
 
 The November 3 record quotes the feeding of five thousand but cites `LK(14:19)`. [USCCB's Luke 14](https://bible.usccb.org/bible/luke/14) places verse 19 in the parable of the great feast and describes an invited guest testing oxen. The record remains unchanged in the archive. Findings in [draft-content.findings.json](../scripts/draft-content.findings.json) use SHA-256 of whitespace-collapsed, trimmed text, so export separators and line wrapping preserve the warning. The separate payload hash still covers the exact original bytes. The tool does not automatically verify other quotations.
