@@ -8,3 +8,6 @@ image.txt
 environment.txt
 run.json
 promotion/
+smoke-image.txt
+cloud-smoke-evidence/
+cloud-smoke-local-evidence/

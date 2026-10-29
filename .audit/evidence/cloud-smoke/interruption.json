@@ -1,0 +1,7 @@
+{
+  "signal": "SIGTERM during CLI verification",
+  "exitCode": 1,
+  "successEvent": false,
+  "temporaryDatabaseAndKeysRemoved": true,
+  "result": "PASS"
+}

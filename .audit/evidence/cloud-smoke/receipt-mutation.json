@@ -1,0 +1,12 @@
+{
+  "mutation": "Remove Green API adapter chat correlation check",
+  "expectedExit": 1,
+  "actualExit": 1,
+  "failure": {
+    "severity": "ERROR",
+    "event": "cloud_smoke_failed",
+    "runId": "acfc32f3-b29c-4e7f-94ff-bbcb21b217c0",
+    "message": "Expected values to be strictly equal:\n+ actual - expected\n\n+ 'confirmed'\n- 'accepted'\n"
+  },
+  "result": "PASS: test rejects a delivered receipt for another group"
+}
