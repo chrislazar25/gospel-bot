@@ -90,6 +90,8 @@ test('import filters exact sender before detection and preserves duplicate sourc
   assert.throws(() => collectMessages('unsupported export', 'Dad'), /No supported/);
 });
 
+const importFixture = written => collectMessages(`[30/10/26, 9:00 AM] Dad: Gospel Msg (Fixture) Synthetic words for a parser fixture. ${written} Closing words.`, 'Dad').messages;
+
 test('import reads citations written in mixed case or with spaces', () => {
   for (const [written, stored, reading] of [
     ['Lk(14:33)', 'Lk(14:33)', 'Luke 14:25-33'],
@@ -98,15 +100,33 @@ test('import reads citations written in mixed case or with spaces', () => {
     ['(Matthew 22:37-39).', 'Matthew(22:37-39)', 'Matthew 22:34-40'],
     ['(LK13:12-13)', 'LK(13:12-13)', 'Luke 13:10-17'],
     ['MK14:24-25', 'MK(14:24-25)', 'Mark 14:12-26'],
+    ['LK14:5', 'LK(14:5)', 'Luke 14:1-6'],
+    ['(Luke 14:5)', 'Luke(14:5)', 'Luke 14:1-6'],
+    ['lk(14:33)', 'lk(14:33)', 'Luke 14:25-33'],
+    ['lK(14:33)', 'lK(14:33)', 'Luke 14:25-33'],
+    ['hearMT(13:41-42)', 'MT(13:41-42)', 'Matthew 13:36-43'],
   ]) {
-    const text = `[30/10/26, 9:00 AM] Dad: Gospel Msg (Fixture) Synthetic words for a parser fixture. ${written} Closing words.`;
-    const [entry] = collectMessages(text, 'Dad').messages;
+    const [entry] = importFixture(written);
     assert.equal(entry.citation, stored);
     assert.equal(entry.title, 'Fixture');
     assert.equal(entry.verse, 'Synthetic words for a parser fixture.');
     assert.equal(entry.closing, 'Closing words.');
     assert.equal(citationMatchesReading(entry.citation, parseApiRef(reading)), true, written);
   }
+});
+
+test('import keeps partial-verse letters so the matcher holds them', () => {
+  for (const [written, stored] of [['(Matthew 5:1-12a)', 'Matthew(5:1-12a)'], ['MT(5:12a)', 'MT(5:12a)']]) {
+    const [entry] = importFixture(written);
+    assert.equal(entry.citation, stored);
+    assert.equal(entry.closing, 'Closing words.');
+    assert.equal(parseReference(entry.citation, 'archive').reason, 'partial-verses-unsupported');
+  }
+});
+
+test('import ignores bracketed numbers that are not citations', () => {
+  const [entry] = importFixture('We walk (2 miles) daily. LK(14:5)');
+  assert.equal(entry.citation, 'LK(14:5)');
 });
 
 test('importing parser executes no filesystem reads or writes and emits no logs', () => {
