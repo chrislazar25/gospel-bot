@@ -8,16 +8,16 @@ A separate branch contains atomic changes and one open PR. An isolated Cloud Run
 
 - [x] Read the Principles section of poteto-mode.
 - [x] Phase A: Frame.
-- [ ] Phase B: Design the workflow.
-- [ ] Phase C: Run the loop.
-- [ ] Verify accessible accounts and existing cloud resources.
-- [ ] Compare two isolated cloud verification designs and select one.
-- [ ] Implement and locally verify the repeatable synthetic-send harness.
-- [ ] Provision and execute isolated staging smoke resources.
-- [ ] Add the reviewed GitHub Actions path and verify its boundaries.
+- [x] Phase B: Design the workflow.
+- [x] Phase C: Run the loop.
+- [x] Verify accessible accounts and existing cloud resources.
+- [x] Compare two isolated cloud verification designs and select one.
+- [x] Implement and locally verify the repeatable synthetic-send harness.
+- [x] Provision and execute isolated staging smoke resources.
+- [x] Add the reviewed GitHub Actions path and verify its boundaries.
 - [ ] Commit atomic units and open one PR.
 - [ ] Inspect one Greptile review and fix supported findings.
-- [ ] Phase D: Keep the audit trail.
+- [x] Phase D: Keep the audit trail.
 - [ ] Phase E: Verify and hand back.
 
 ## Throughput checkpoint
@@ -31,19 +31,19 @@ One isolated cloud smoke test, its infrastructure/workflow path, and a short ope
 ## Design phases
 
 - [x] Ground.
-- [ ] Sketch two candidates.
-- [ ] Agree. Default to the reviewed isolated design without a user checkpoint.
-- [ ] Implement.
-- [ ] Scrap if verified assumptions fail.
+- [x] Sketch two candidates.
+- [x] Agree. Default to the reviewed isolated design without a user checkpoint.
+- [x] Implement.
+- [x] Scrap if verified assumptions fail. Not needed. Fixture and command fixes fit the selected design.
 
 ## Arena phases
 
 - [x] Frame. Grade safety, fidelity to production code, reproducibility, and simplicity.
-- [ ] Fan out.
-- [ ] Cross-judge.
-- [ ] Pick.
-- [ ] Graft.
-- [ ] Verify.
+- [x] Fan out.
+- [x] Cross-judge.
+- [x] Pick.
+- [x] Graft.
+- [x] Verify.
 
 ## Design decision
 
@@ -56,3 +56,25 @@ Safety and fidelity both scored 5/5 for the selected design. The simpler lifecyc
 ## Coverage ownership
 
 The parent owns the smoke image, transport, CLI scenario, and actual cloud evidence. A separate worktree owns the Terraform root, wrapper, workflow wiring, and command-boundary tests. Source writes are separated and their outputs are integrated only after verification.
+
+## Cloud result
+
+The authorized administrator branch run applied five isolated smoke resources and executed `gospel-staging-cloud-smoke-j5g6q` successfully. The logs prove thirteen checks, exactly one synthetic submission and one attempt, a matching delivered receipt, confirmed SQL state, HTTP health/status reads, and cleanup. The source revision is `30cb745d03790b7c8495107aa57cbc195c174ba0`. The pinned image and execution record are in `.audit/evidence/cloud-smoke/cloud-result.json`. Execution metadata omits creator annotations.
+
+[Open the actual Cloud Run execution](https://console.cloud.google.com/run/jobs/executions/details/us-central1/gospel-staging-cloud-smoke-j5g6q?project=864310543997).
+
+The initial local prototype predates the harness commit and therefore reports the baseline revision. It is not the final source attestation. The committed cloud proof and execution bind the final tested code revision, digest, execution name, and received payload.
+
+## Review and corrections
+
+Independent same-model reviewers caught two receipt fixtures that could pass for the wrong reason, incomplete interruption cleanup, retained job-command overrides, and lost metadata on failed executions. The delivered wrong-group fixture now fails when the adapter's group check is removed. SIGTERM produces a failed result and removes temporary keys and database files. The wrapper forces and verifies the harness command, captures the execution identity before waiting, and retains terminal failure metadata.
+
+Actual publication exposed two issues that command stubs had missed. The installed CLI reports missing images as `Image not found.`. Both publishers now accept that specific response as well as `NOT_FOUND`. Docker Desktop initially associated the immutable tag with an attestation manifest. A fresh single-platform push succeeded. Both publishers now push the Linux AMD64 manifest explicitly. The failed tag is preserved and is not a release candidate.
+
+## Verification limits
+
+The real cloud proof uses an ephemeral local PostgreSQL database and simulated Green transport. It does not prove Neon connectivity, real Green API authorization, WhatsApp delivery, persistence across cloud executions, private Cloud Run service IAM, alert routing, or GitHub WIF execution of the new workflow branches. WIF remains restricted to protected master. The first branch run used existing administrator authentication. Future smoke Actions become available after human review and merge.
+
+The status routes ran inside the smoke job. There is no persistent application status service yet. No production resources, real provider secrets, real group identifiers, approved content, or schedules changed. Only the staging `SMOKE_IMAGE` GitHub variable was added.
+
+The installed harness has no deslop or Comment Sicko plugin. Independent manual comment/prose checks found no comments or suppressions to remove. Configured reviewers all use GPT-6.1 Sol, so cross-family review is unavailable. No exported transcript path was provided for an independent transcript audit; the decision trail is checked against the command evidence and committed artifacts instead.
