@@ -1,5 +1,7 @@
 # Cloud smoke verification
 
+Latest cloud result: the corrected scenario passed fourteen checks in `gospel-staging-cloud-smoke-8hh8b`. It submitted one synthetic message and confirmed its receipt. PR #9 contains the first Greptile finding and its fix. GitHub reports the latest CI state on the PR.
+
 ## Definition of done
 
 A separate branch contains atomic changes and one open PR. An isolated Cloud Run execution submits synthetic message text through the shared delivery code to a simulated provider, proves a single submission despite repeat/concurrent calls, and records a correlated delivered receipt. Its logs identify the tested source and image. Production, real WhatsApp credentials, and real groups remain untouched. Missing Neon/provider access is reported separately from this cloud proof.
@@ -15,10 +17,10 @@ A separate branch contains atomic changes and one open PR. An isolated Cloud Run
 - [x] Implement and locally verify the repeatable synthetic-send harness.
 - [x] Provision and execute isolated staging smoke resources.
 - [x] Add the reviewed GitHub Actions path and verify its boundaries.
-- [ ] Commit atomic units and open one PR.
-- [ ] Inspect one Greptile review and fix supported findings.
+- [x] Commit atomic units and open one PR.
+- [x] Inspect one Greptile review and fix supported findings.
 - [x] Phase D: Keep the audit trail.
-- [ ] Phase E: Verify and hand back.
+- [x] Phase E: Verify and hand back.
 
 ## Throughput checkpoint
 
@@ -98,3 +100,15 @@ The script creates and removes its own two mutated images and interrupted contai
 GitHub variable readback is retained in `github-variable.json`. Terraform state and both scoped IAM policies are summarized in `provisioning-readback.json`.
 
 The bundled PR watcher requires Bun, which is absent. Native `gh pr checks --watch` was used with explicit review-thread and merge-state reads. No unavailable watcher or cross-family review is claimed.
+
+## Final corrected cloud run
+
+`gospel-staging-cloud-smoke-8hh8b` ran source `f74b73d28fc7f50afb2aeaa4ba127b9a444b446c` and passed fourteen checks. The status role had no table or column write grants, and a real UPDATE failed after its read-only default was disabled. Exactly one final success event in Cloud Logging matched the execution, image, source, payload hash, and fourteen check events. The runtime reported one submission, one attempt, confirmed state, and cleanup.
+
+The `cloud-proof-final.json`, `cloud-execution-final.json`, and `cloud-result-final.json` files retain this corrected evidence. The original thirteen-check run remains in the original filenames. `github-variable-final.json` records the staging variable's updated digest and verified readback. No production configuration changed.
+
+[Open the corrected Cloud Run execution](https://console.cloud.google.com/run/jobs/executions/details/us-central1/gospel-staging-cloud-smoke-8hh8b?project=864310543997).
+
+## Attention
+
+Reviewed by GPT-6.1 Sol. This is same-model review, not cross-family review or a full transcript audit. All three audit flags were addressed with retained readback, provisioning state/IAM, and the rerun script. Remaining integration limits are listed above. The PR remains open for human review. Final GitHub checks are visible on [PR #9](https://github.com/chrislazar25/gospel-bot/pull/9).
