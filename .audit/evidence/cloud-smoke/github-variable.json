@@ -1,0 +1,6 @@
+{
+  "environment": "staging",
+  "name": "SMOKE_IMAGE",
+  "value": "us-central1-docker.pkg.dev/gospel-bot-493719/gospel/cloud-smoke@sha256:be86691c79d72c6c4815949474a80d4f291851b76fe92b1d2f6edd58af381bd4",
+  "readbackVerified": true
+}

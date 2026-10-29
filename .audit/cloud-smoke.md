@@ -78,3 +78,23 @@ The real cloud proof uses an ephemeral local PostgreSQL database and simulated G
 The status routes ran inside the smoke job. There is no persistent application status service yet. No production resources, real provider secrets, real group identifiers, approved content, or schedules changed. Only the staging `SMOKE_IMAGE` GitHub variable was added.
 
 The installed harness has no deslop or Comment Sicko plugin. Independent manual comment/prose checks found no comments or suppressions to remove. Configured reviewers all use GPT-6.1 Sol, so cross-family review is unavailable. No exported transcript path was provided for an independent transcript audit; the decision trail is checked against the command evidence and committed artifacts instead.
+
+## First Greptile review
+
+Greptile's first completed review reported one P2 finding. The cloud smoke scenario read with the status role but did not prove its write permissions were absent. A separate status connection now verifies the read-only default, disables it, checks table and column write privileges, and requires a real UPDATE to fail with PostgreSQL permission error 42501. The initial harness allowed an injected column-write grant to survive. The corrected harness rejects it. This changes the final smoke scenario from thirteen checks to fourteen.
+
+The retained initial cloud evidence above proves the original thirteen-check run. Final cloud evidence is recorded separately after rebuilding the corrected committed source.
+
+## Repeat the negative checks
+
+After `scripts/cloud/cloud-smoke.sh local`, run this from the repository root:
+
+```sh
+python3 .audit/evidence/cloud-smoke/reproduce-negative-cases.py "gospel-cloud-smoke:$(git rev-parse HEAD)"
+```
+
+The script creates and removes its own two mutated images and interrupted container. It verifies rejection of a wrong-group delivery and an injected status-role column grant. It also verifies SIGTERM failure and inspects the stopped container's filesystem changes for leftover database/key directories. Each result records the exact mutation and observations. `before-status-fix/status-permission-mutation.json` preserves the missing guard before correction.
+
+GitHub variable readback is retained in `github-variable.json`. Terraform state and both scoped IAM policies are summarized in `provisioning-readback.json`.
+
+The bundled PR watcher requires Bun, which is absent. Native `gh pr checks --watch` was used with explicit review-thread and merge-state reads. No unavailable watcher or cross-family review is claimed.
