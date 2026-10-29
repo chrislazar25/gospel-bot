@@ -153,14 +153,18 @@ export async function prepareStaging(preparation, neon, pause = ms => new Promis
   let child = await list();
   let created = false;
   if (!child) {
+    let creationError;
     // A POST outcome can be ambiguous. Its credential-bearing response is never parsed or retried.
-    try { await neon.createBranch(request); created = true; } catch {}
+    try { await neon.createBranch(request); created = true; } catch (error) { creationError = safeError(error); }
     for (let attempt = 0; attempt < 5; attempt++) {
       child = await list();
       if (child) break;
       if (attempt < 4) await pause(1000);
     }
-    if (!child) fail('branch_not_ready');
+    if (!child) {
+      if (creationError) throw creationError;
+      fail('branch_not_ready');
+    }
   }
   const verifyBranch = branch => {
     if (branch.id === request.parentBranchId || branch.project_id !== request.projectId

@@ -162,9 +162,16 @@ test('ambiguous creation reconciles by GET and never repeats POST', async t => {
     const h = harness();
     h.state.create = () => { if (resolved) h.state.branches.push({ ...child }); throw new Error(marker); };
     if (resolved) assert.equal((await h.run()).branchId, child.id);
-    else { await rejectsSafely(h.run(), 'branch_not_ready'); assert.equal(h.state.waits, 4); }
+    else { await rejectsSafely(h.run(), 'neon_request_failed'); assert.equal(h.state.waits, 4); }
     assert.equal(h.posts().length, 1);
   });
+});
+
+test('creation permission errors survive unsuccessful metadata reconciliation', async () => {
+  const h = harness();
+  h.state.create = () => ({ ok: false, status: 403, text() { assert.fail('credential-bearing body must not be read'); } });
+  await rejectsSafely(h.run(), 'neon_http_403');
+  assert.equal(h.posts().length, 1);
 });
 
 test('initializing child metadata gets bounded read retries', async t => {
