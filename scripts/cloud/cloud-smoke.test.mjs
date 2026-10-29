@@ -28,7 +28,7 @@ if (name === 'docker' && args[0] === 'image' && args[1] === 'inspect') console.l
 if (name === 'docker' && args[0] === 'push') fs.writeFileSync(process.env.PUSHED, 'pushed');
 if (name === 'gcloud') {
   if (args[0] === 'artifacts') {
-    if (scenario === 'new-image' && !fs.existsSync(process.env.PUSHED)) {console.error('NOT_FOUND'); process.exit(1);}
+    if (scenario.startsWith('new-image') && !fs.existsSync(process.env.PUSHED)) {console.error(scenario === 'new-image-cli' ? 'Image not found.' : 'NOT_FOUND'); process.exit(1);}
     console.log('${digest}');
   }
   if (args[0] === 'run' && args[1] === 'jobs' && args[2] === 'execute') {
@@ -36,11 +36,14 @@ if (name === 'gcloud') {
     console.log('${execution}');
   }
   if (args[0] === 'run' && args[1] === 'jobs' && args[2] === 'executions') {
+    const describes = fs.readFileSync(process.env.TRACE, 'utf8').trim().split('\\n').map(line => JSON.parse(line)).filter(row => row.name === 'gcloud' && row.args[2] === 'executions').length;
+    const pending = scenario === 'initially-pending' && describes === 1;
     console.log(JSON.stringify({
       metadata: {name: '${execution}', labels: {'run.googleapis.com/job': scenario === 'wrong-job' ? 'gospel-staging-send' : 'gospel-staging-cloud-smoke'}},
-      spec: {taskCount: 1, template: {spec: {containers: [{image: scenario === 'wrong-image' ? 'runtime:latest' : '${image}'}]}}},
+      spec: {taskCount: 1, template: {spec: {containers: [{image: scenario === 'wrong-image' ? 'runtime:latest' : '${image}',
+        command: scenario === 'wrong-command' ? ['/bin/true'] : ['node'], args: ['/verification/run.mjs']}]}}},
       status: {succeededCount: scenario === 'failed-execution' ? 0 : 1, failedCount: scenario === 'failed-execution' ? 1 : 0,
-        conditions: [{type: 'Completed', status: scenario === 'incomplete' ? 'Unknown' : 'True'}]},
+        conditions: [{type: 'Completed', status: pending ? 'Unknown' : scenario === 'failed-execution' ? 'False' : 'True'}]},
     }));
   }
 }
@@ -51,7 +54,7 @@ try {
     assert.equal(result.status, 0, result.stderr);
     return result.stdout.trim();
   };
-  for (const name of ['docker', 'gcloud']) writeFileSync(join(directory, name), stub, { mode: 0o755 });
+  for (const name of ['docker', 'gcloud', 'sleep']) writeFileSync(join(directory, name), stub, { mode: 0o755 });
   writeFileSync(join(directory, '.gitignore'), 'cloud-smoke-evidence/\nsmoke-image.txt\ntrace.jsonl\npushed\n');
   git('init', '--quiet');
   git('add', '.');
@@ -102,6 +105,9 @@ try {
   assert.ok(trace.some(row => row.name === 'docker' && row.args[0] === 'push'));
   assert.ok(trace.findIndex(row => row.args[0] === 'run') < trace.findIndex(row => row.args[0] === 'push'));
   console.log('PASS new publication requires local proof before pushing a separate pinned smoke image');
+  trace = exercise('publish', 'new-image-cli', 0);
+  assert.ok(trace.some(row => row.name === 'docker' && row.args[0] === 'push'));
+  console.log('PASS the real gcloud missing-image message permits first publication');
   for (const scenario of ['wrong-scope', 'mutable-image']) {
     trace = exercise('execute', scenario, 1);
     assert.equal(trace.length, 0, JSON.stringify({scenario, trace}));
@@ -117,12 +123,18 @@ try {
   assert.equal(mutations.length, 2);
   assert.ok(mutations.every(row => row.args[3] === 'gospel-staging-cloud-smoke'));
   assert.ok(mutations[0].args.includes('--image=' + image));
+  assert.ok(mutations[0].args.includes('--command=node') && mutations[0].args.includes('--args=/verification/run.mjs'));
+  assert.ok(mutations[1].args.includes('--async'));
   const success = JSON.parse(readFileSync(join(directory, 'cloud-smoke-evidence/success.json'), 'utf8'));
   assert.deepEqual(success, {execution, image, checkout_revision: sha, success: true});
   console.log('PASS only the fixed smoke job is updated and successful execution evidence names its pinned image');
-  for (const scenario of ['execute-fails', 'failed-execution', 'incomplete', 'wrong-image', 'wrong-job']) {
+  trace = exercise('execute', 'initially-pending', 0);
+  assert.equal(trace.filter(row => row.name === 'gcloud' && row.args[2] === 'executions').length, 2);
+  console.log('PASS a pending execution is observed again before success');
+  for (const scenario of ['execute-fails', 'failed-execution', 'wrong-command', 'wrong-image', 'wrong-job']) {
     exercise('execute', scenario, 1);
     assert.equal(existsSync(join(directory, 'cloud-smoke-evidence/success.json')), false);
+    if (scenario !== 'execute-fails') assert.equal(existsSync(join(directory, 'cloud-smoke-evidence/execution.json')), true);
     console.log('PASS ' + scenario + ' cannot leave successful execution evidence');
   }
 } finally {

@@ -42,7 +42,9 @@ resource "google_cloud_run_v2_job" "smoke" {
       max_retries     = 0
       timeout         = "300s"
       containers {
-        image = var.image
+        image   = var.image
+        command = ["node"]
+        args    = ["/verification/run.mjs"]
         resources {
           limits = { cpu = "2", memory = "2Gi" }
         }

@@ -50,7 +50,7 @@ if [[ "$MODE" == publish ]]; then
     docker run --rm --network none -e APP_ENV=staging "$REPOSITORY@$DIGEST" | tee "$EVIDENCE/published.jsonl"
     verify_local_proof "$EVIDENCE/published.jsonl"
   else
-    [[ "$(cat "$ERROR_FILE")" == *NOT_FOUND* ]] || { cat "$ERROR_FILE" >&2; exit 1; }
+    grep -Eq 'NOT_FOUND|Image not found\.' "$ERROR_FILE" || { cat "$ERROR_FILE" >&2; exit 1; }
     docker tag "gospel-cloud-smoke:$SHA" "$REPOSITORY:$SHA"
     docker push "$REPOSITORY:$SHA"
     DIGEST=$(gcloud artifacts docker images describe "$REPOSITORY:$SHA" --project="$GCP_PROJECT_ID" --format='value(image_summary.digest)')
@@ -71,15 +71,23 @@ cp smoke-image.txt "$EVIDENCE/smoke-image.txt"
 docker pull "$IMAGE"
 docker image inspect --format '{{json .Config.Labels}}' "$IMAGE" > "$EVIDENCE/image-labels.json"
 jq -e --arg sha "$SHA" '.["org.opencontainers.image.revision"] == $sha and .["io.gospel.image-purpose"] == "cloud-smoke"' "$EVIDENCE/image-labels.json" >/dev/null
-gcloud run jobs update "$JOB" --image="$IMAGE" --region="$REGION" --project="$GCP_PROJECT_ID" --quiet
-EXECUTION=$(gcloud run jobs execute "$JOB" --wait --region="$REGION" --project="$GCP_PROJECT_ID" --format='value(metadata.name)')
+gcloud run jobs update "$JOB" --image="$IMAGE" --command=node --args=/verification/run.mjs --region="$REGION" --project="$GCP_PROJECT_ID" --quiet
+EXECUTION=$(gcloud run jobs execute "$JOB" --async --region="$REGION" --project="$GCP_PROJECT_ID" --format='value(metadata.name)' 2> "$EVIDENCE/launch.log")
 [[ "$EXECUTION" =~ ^gospel-staging-cloud-smoke-[a-z0-9]+$ ]] || exit 1
-gcloud run jobs executions describe "$EXECUTION" --region="$REGION" --project="$GCP_PROJECT_ID" --format=json > "$EVIDENCE/execution.json"
+for ((attempt=0; attempt<60; attempt++)); do
+  gcloud run jobs executions describe "$EXECUTION" --region="$REGION" --project="$GCP_PROJECT_ID" --format=json > "$EVIDENCE/execution.json"
+  if jq -e 'any(.status.conditions[]?; .type == "Completed" and (.status == "True" or .status == "False"))' "$EVIDENCE/execution.json" >/dev/null; then
+    break
+  fi
+  sleep 5
+done
 jq -e --arg image "$IMAGE" --arg execution "$EXECUTION" --arg job "$JOB" '
   .metadata.name == $execution and
   .metadata.labels["run.googleapis.com/job"] == $job and
   .spec.taskCount == 1 and
   .spec.template.spec.containers[0].image == $image and
+  .spec.template.spec.containers[0].command == ["node"] and
+  .spec.template.spec.containers[0].args == ["/verification/run.mjs"] and
   (.spec.template.spec.containers | length) == 1 and
   .status.succeededCount == 1 and
   (.status.failedCount // 0) == 0 and
