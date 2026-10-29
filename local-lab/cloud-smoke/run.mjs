@@ -215,6 +215,23 @@ try {
   const check = await runtime('check', statusEnv);
   assert.match(check.stdout, /"event":"delivery_check"[^\n]*"status":"confirmed"/);
   passed('read-only status role reports the confirmed delivery');
+  const statusClient = new Client({ connectionString: connection('status'), ssl });
+  try {
+    await statusClient.connect();
+    assert.equal((await statusClient.query('SHOW default_transaction_read_only')).rows[0].default_transaction_read_only, 'on');
+    await statusClient.query('SET default_transaction_read_only=off');
+    assert.equal((await statusClient.query('SHOW transaction_read_only')).rows[0].transaction_read_only, 'off');
+    const permissions = await statusClient.query(`SELECT table_name,
+      has_table_privilege(current_user,table_name,'INSERT,UPDATE,DELETE,TRUNCATE') AS table_write,
+      has_any_column_privilege(current_user,table_name,'INSERT,UPDATE') AS column_write
+      FROM unnest($1::text[]) AS tables(table_name)`, [['deliveries', 'delivery_evidence', 'schema_migrations']]);
+    for (const row of permissions.rows) {
+      assert.equal(row.table_write, false, `${row.table_name} must deny table writes`);
+      assert.equal(row.column_write, false, `${row.table_name} must deny column writes`);
+    }
+    await assert.rejects(statusClient.query('UPDATE deliveries SET evidence=$1 WHERE id=$2', ['forbidden smoke write', confirmed.id]), error => error.code === '42501');
+  } finally { await statusClient.end(); }
+  passed('status role rejects writes with its read-only default disabled');
   const { createStatusServer } = await import('/app/dist/status.js');
   const { Pool } = require('pg');
   statusPool = new Pool({ connectionString: connection('status'), ssl });

@@ -1,0 +1,10 @@
+{
+  "image": "gospel-cloud-smoke:review-fix",
+  "mutation": "status-permission-mutation",
+  "path": "/verification/run.mjs",
+  "before": "passed('read-only status role reports the confirmed delivery');",
+  "after": "await client.query('GRANT UPDATE(evidence) ON deliveries TO gospel_status');passed('read-only status role reports the confirmed delivery');",
+  "exitCode": 1,
+  "stderr": "{\"severity\":\"ERROR\",\"event\":\"cloud_smoke_failed\",\"runId\":\"f7f6e82e-9855-411b-ad25-501714814da4\",\"message\":\"deliveries must deny column writes\\n\\ntrue !== false\\n\"}\n",
+  "result": "PASS"
+}
