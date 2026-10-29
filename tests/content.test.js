@@ -6,7 +6,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const { parseApiRef, parseDadCitation, citationMatchesReading, parseReference, GOSPEL_VERSE_COUNTS } = require('../gospel_matcher');
-const { parseChat, collectMessages } = require('../parse_gospel');
+const { parseChat, collectMessages, extractFields } = require('../parse_gospel');
 const { batchDates, draftBatch, writeDraft, fetchSnapshot, formatPreview, main } = require('../scripts/draft-content');
 
 const root = path.resolve(__dirname, '..');
@@ -88,6 +88,44 @@ test('import filters exact sender before detection and preserves duplicate sourc
   assert.equal(parseChat(text)[0].sender, 'Dad 2');
   assert.throws(() => collectMessages(text, ''), /exact sender/);
   assert.throws(() => collectMessages('unsupported export', 'Dad'), /No supported/);
+});
+
+const importFixture = written => collectMessages(`[30/10/26, 9:00 AM] Dad: Gospel Msg (Fixture) Synthetic words for a parser fixture. ${written} Closing words.`, 'Dad').messages;
+
+test('import reads citations written in mixed case or with spaces', () => {
+  for (const [written, stored, reading] of [
+    ['Lk(14:33)', 'Lk(14:33)', 'Luke 14:25-33'],
+    ['LK (14:23-24)', 'LK(14:23-24)', 'Luke 14:15-24'],
+    ['MT (17: 25-26)', 'MT(17: 25-26)', 'Matthew 17:22-27'],
+    ['(Matthew 22:37-39).', 'Matthew(22:37-39)', 'Matthew 22:34-40'],
+    ['(LK13:12-13)', 'LK(13:12-13)', 'Luke 13:10-17'],
+    ['MK14:24-25', 'MK(14:24-25)', 'Mark 14:12-26'],
+    ['LK14:5', 'LK(14:5)', 'Luke 14:1-6'],
+    ['(Luke 14:5)', 'Luke(14:5)', 'Luke 14:1-6'],
+    ['lk(14:33)', 'lk(14:33)', 'Luke 14:25-33'],
+    ['lK(14:33)', 'lK(14:33)', 'Luke 14:25-33'],
+  ]) {
+    const [entry] = importFixture(written);
+    assert.equal(entry.citation, stored);
+    assert.equal(entry.title, 'Fixture');
+    assert.equal(entry.verse, 'Synthetic words for a parser fixture.');
+    assert.equal(entry.closing, 'Closing words.');
+    assert.equal(citationMatchesReading(entry.citation, parseApiRef(reading)), true, written);
+  }
+});
+
+test('import keeps partial-verse letters so the matcher holds them', () => {
+  for (const [written, stored] of [['(Matthew 5:1-12a)', 'Matthew(5:1-12a)'], ['MT(5:12a)', 'MT(5:12a)']]) {
+    const [entry] = importFixture(written);
+    assert.equal(entry.citation, stored);
+    assert.equal(entry.closing, 'Closing words.');
+    assert.equal(parseReference(entry.citation, 'archive').reason, 'partial-verses-unsupported');
+  }
+});
+
+test('import ignores bracketed numbers that are not citations', () => {
+  const [entry] = importFixture('We walk (2 miles) daily. LK(14:5)');
+  assert.equal(entry.citation, 'LK(14:5)');
 });
 
 test('importing parser executes no filesystem reads or writes and emits no logs', () => {
@@ -259,7 +297,7 @@ test('committed review packet replays exactly and every displayed payload matche
   assert.equal(preview.split(stored.sourceSnapshot.archiveSha256).length - 1, 1);
   assert.equal(preview.split('Authorship and quotation accuracy remain unverified.').length - 1, 1);
   assert.ok(preview.includes('[Full metadata and payload hashes](draft-batch.json)'));
-  assert.deepEqual(stored.summary, { mechanicalCandidateDates: 12, candidates: 11, gaps: 1, unsupported: 2 });
+  assert.deepEqual(stored.summary, { mechanicalCandidateDates: 13, candidates: 13, gaps: 0, unsupported: 1 });
   assert.equal(stored.days.length, 14);
   for (const day of stored.days) {
     assert.equal(day.approval, 'DRAFT_REQUIRES_REVIEW');
@@ -278,8 +316,16 @@ test('committed review packet replays exactly and every displayed payload matche
       assert.ok(payloadSection.includes(`<pre>${escapedPayload}</pre>`));
       assert.ok(payloadSection.includes(`Source #${candidate.archiveIndex}. Archive date ${candidate.archiveDate}. Citation ${candidate.citation}.`));
       for (const finding of candidate.editorialFindings) assert.ok(visible.includes(finding.finding));
-      if (day.proposed && !candidate.ranking.calendarLabelExact) assert.ok(visible.includes(`source #${candidate.archiveIndex} uses "${candidate.originalLabel || '(none)'}"`));
+      if (day.proposed && !day.heldCandidates.includes(candidate) && !candidate.ranking.calendarLabelExact) assert.ok(visible.includes(`source #${candidate.archiveIndex} uses "${candidate.originalLabel || '(none)'}"`));
       if (day.proposed === candidate) assert.equal(candidate.editorialFindings.length, 0);
     }
+  }
+});
+
+test('committed archive stores the fields the importer reads from each message', () => {
+  const archive = JSON.parse(fs.readFileSync(path.join(root, 'gospel_messages.json')));
+  for (const [index, record] of archive.messages.entries()) {
+    const fields = extractFields({ text: record.fullText, date: '30/10/26' });
+    assert.deepEqual([record.citation, record.verse, record.closing], [fields.citation, fields.verse, fields.closing], `source #${index}`);
   }
 });

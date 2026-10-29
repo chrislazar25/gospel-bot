@@ -26,7 +26,7 @@ Keep the John proposal pending your decision about following the diary for this 
 
 Luke 14:15-24 is the banquet and the guests' excuses. The feeding-of-five-thousand archive record remains held.
 
-Use the actual banquet message already in archive source **#1044**, Luke 14:23-24. The generator missed it because its saved citation field is null, although `LK (14:23-24)` appears in its full text.
+Use the actual banquet message already in archive source **#1044**, Luke 14:23-24. The generator now proposes it. It was missed earlier because the importer did not read the spaced citation `LK (14:23-24)`.
 
 > Today's Gospel Msg (Parable of The Great Dinner)  Then the master said to the slave, " Go out into the roads and lanes, and compel people to come in, so that my house may be filled. For I tell you, none of those who were invited will taste my dinner." LK (14:23-24) Jesus is Lord, spread the living word of God.
 
@@ -36,7 +36,7 @@ Use the actual banquet message already in archive source **#1044**, Luke 14:23-2
 
 "Hate" appears in the actual Luke 14:26 text. It is not an archive typo. [USCCB's notes](https://bible.usccb.org/bible/luke/14) explain Christ's priority over family attachments. [Fr. Antony Kadavil's Vatican News reflection](https://www.vaticannews.va/en/church/news/2019-09/sunday-reflection-vatican-news.html) discusses hyperbole and spiritual detachment. "Attached" expresses part of the interpretation, rather than a replacement word inside a direct quotation.
 
-Use archive source **#424**, Luke 14:33, from the same day's reading. It addresses renouncing possessions without changing the wording of Luke 14:26. Its saved citation field is also null despite the citation in the full text.
+Use archive source **#424**, Luke 14:33, from the same day's reading. It addresses renouncing possessions without changing the wording of Luke 14:26. The generator now lists it as an alternative. It was missed earlier because the importer did not read the mixed-case citation `Lk(14:33)`.
 
 > Today's Gospel Msg ( Cost of Discipleship) Jesus said, " In the same way, anyone of you who does not renounce all his possessions cannot be my disciple." Lk(14:33) Jesus is Lord, spread the living word of God.
 
@@ -52,7 +52,7 @@ Use archive source **#44** as the replacement proposal. It has the same theme an
 
 ## November 6. Use the overlooked archive message
 
-The API returns Luke 16:1-8. Archive source **#1047** already contains a message for verse 8. The generated packet reports a gap because the record's saved citation field is null. This is missing metadata, rather than a missing message.
+The API returns Luke 16:1-8. Archive source **#1047** already contains a message for verse 8. The generator now proposes it, so this date is no longer a gap. It was missed earlier because the importer did not read the mixed-case citation `Lk(16:8)`.
 
 > Today's Gospel Msg ( Dishonest Manager) And the master commended that dishonest steward for acting prudently. "For the children of this world are more prudent in dealing with their own generation than are the children of light." Lk(16:8) Jesus is Lord, spread the living word of God.
 

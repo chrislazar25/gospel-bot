@@ -52,15 +52,22 @@ function isGospelMessage(msg) {
   return GOSPEL_INDICATORS.some(p => p.test(t));
 }
 
+// Archive citations appear as MT(1:2), Lk(14:33), LK (14:23-24), hearMT(13:41-42),
+// or without book brackets as (Matthew 22:37-39), (LK13:12-13), MK14:24-25.
+const VERSES = String.raw`\d+\s*:\s*\d+[a-z]?(?:\s*[,;-]\s*(?:\d+\s*:\s*)?\d+[a-z]?)*`;
+const CITATION_PATTERNS = [
+  /(?<book>(?<![A-Za-z])[1-3]?(?:[A-Z]{1,3}|[A-Za-z][a-z]{0,6}|[a-z][A-Z])|(?<=[a-z])[A-Z]{2,3})\s*\((?<verses>\d+(?:\s*[:-][^)]*)?)\)/,
+  new RegExp(String.raw`(?<![A-Za-z])\(?(?<book>Matthew|Mark|Luke|John|MT|MK|LK|JH|JN)\s*(?<verses>${VERSES})\s*\)?\.?`, 'i'),
+];
+
 function extractFields(msg) {
   let text = msg.text
     .replace(/<This message was edited>/g, '')
     .replace(/\n+/g, ' ')
     .trim();
 
-  // Scripture citation: MT(1:2), JH(3:16), LK(4:1-5), MK(12:32-33), 1Jh(1:3) etc.
-  const citationMatch = text.match(/([1-3]?[A-Z]{1,3})\(([^)]+)\)/);
-  const citation = citationMatch ? `${citationMatch[1]}(${citationMatch[2]})` : null;
+  const citationMatch = CITATION_PATTERNS.map(pattern => text.match(pattern)).find(Boolean);
+  const citation = citationMatch ? `${citationMatch.groups.book}(${citationMatch.groups.verses})` : null;
 
   // Closing phrase: everything after the citation
   let closing = '';

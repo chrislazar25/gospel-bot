@@ -40,7 +40,7 @@ function parseReference(raw, format = 'api') {
   let chapter = null;
   const intervals = [];
   for (const part of body.split(/[,;]/)) {
-    const segment = part.trim().match(/^(?:(\d+):)?(\d+)(?:\s*-\s*(?:(\d+):)?(\d+))?$/);
+    const segment = part.trim().match(/^(?:(\d+)\s*:\s*)?(\d+)(?:\s*-\s*(?:(\d+):)?(\d+))?$/);
     if (!segment) return { state: 'unsupported', reason: 'unsupported-reference-syntax' };
     const startChapter = segment[1] ? Number(segment[1]) : chapter;
     const start = Number(segment[2]);
