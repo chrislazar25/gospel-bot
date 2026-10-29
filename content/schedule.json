@@ -1,4 +1,65 @@
 {
   "schemaVersion": 1,
-  "messages": []
+  "messages": [
+    {
+      "date": "2026-11-01",
+      "file": "messages/2026-11-01.txt",
+      "sha256": "69e64a1ffd795c49a934fc78bcbd7c652339ab146ad4de08b8cab2f4e4c359f0"
+    },
+    {
+      "date": "2026-11-02",
+      "file": "messages/2026-11-02.txt",
+      "sha256": "ad122c4e47aff5acdbc68669fc142d90109c78e51030fa50708b181bcec7d776"
+    },
+    {
+      "date": "2026-11-03",
+      "file": "messages/2026-11-03.txt",
+      "sha256": "db0b3e8149bf64b5d9c81679b8e608902757d978b51c4b1fd1ace3e88d546cb8"
+    },
+    {
+      "date": "2026-11-04",
+      "file": "messages/2026-11-04.txt",
+      "sha256": "aa3504b4bfaf216ed92f7068e9516cc8b5d62a95893f37800d4fa2769dd3222b"
+    },
+    {
+      "date": "2026-11-05",
+      "file": "messages/2026-11-05.txt",
+      "sha256": "cb69abc230269d300f6932c6b82edfb31542e68bef5222969234a21011d70617"
+    },
+    {
+      "date": "2026-11-06",
+      "file": "messages/2026-11-06.txt",
+      "sha256": "890ee5fba6e16b5210a5e684086f4b83c764120364fa168518ec633849d1f10c"
+    },
+    {
+      "date": "2026-11-07",
+      "file": "messages/2026-11-07.txt",
+      "sha256": "f6a701f5c47a79eac5834d82ffc25acc712ccda09649ea113da5f9e0a67f71e3"
+    },
+    {
+      "date": "2026-11-08",
+      "file": "messages/2026-11-08.txt",
+      "sha256": "092f8dd58342097a219db6ea7b9ccb784460185dd89592f92035acc83bf4833f"
+    },
+    {
+      "date": "2026-11-09",
+      "file": "messages/2026-11-09.txt",
+      "sha256": "95ba5cd7bc53ef219d9ccfced69e2cc0eef392887b2575fac8bacb5d825c6f26"
+    },
+    {
+      "date": "2026-11-10",
+      "file": "messages/2026-11-10.txt",
+      "sha256": "421b15c29b799f9a8a14b1f14605b41daf44ed8603572528edf1ba6a1ebbe7fa"
+    },
+    {
+      "date": "2026-11-11",
+      "file": "messages/2026-11-11.txt",
+      "sha256": "42bf4a76b51c9e0f3d3d7b2279a9556942167f0089ab04b3e8197232cb4d45ae"
+    },
+    {
+      "date": "2026-11-12",
+      "file": "messages/2026-11-12.txt",
+      "sha256": "34e3969d0651ebe297cb728f0e0257e03d6388ec5edfeaaa44af3490db3a8c05"
+    }
+  ]
 }
