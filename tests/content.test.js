@@ -8,6 +8,7 @@ const { createHash } = require('node:crypto');
 const { parseApiRef, parseDadCitation, citationMatchesReading, parseReference, GOSPEL_VERSE_COUNTS } = require('../gospel_matcher');
 const { parseChat, collectMessages, extractFields } = require('../parse_gospel');
 const { batchDates, draftBatch, writeDraft, fetchSnapshot, formatPreview, main } = require('../scripts/draft-content');
+const { nextStartDate, openBatch } = require('../scripts/open-batch');
 
 const root = path.resolve(__dirname, '..');
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -343,4 +344,31 @@ test('published messages cover consecutive dates and decode as UTF-8 text', () =
     const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(fs.readFileSync(path.join(messagesDirectory, file)));
     assert.ok(text.trim() && !text.startsWith('﻿'), `${file} is empty or starts with a byte order mark`);
   });
+});
+
+test('a batch is due when fewer than 21 days of published messages remain', () => {
+  const published = batchDates('2026-10-30').slice(2);
+  assert.equal(nextStartDate(published, '2026-10-30'), '2026-11-13');
+  assert.equal(nextStartDate(published, '2026-10-22'), null);
+  assert.equal(nextStartDate(published, '2026-10-23'), '2026-11-13');
+  assert.equal(nextStartDate([], '2026-10-30'), '2026-10-31');
+  assert.equal(nextStartDate(published, '2026-11-20'), '2026-11-21');
+});
+
+test('opening a batch writes proposed messages and lists dates that need one', async t => {
+  const directory = temporary(t);
+  fs.mkdirSync(path.join(directory, 'content/messages'), { recursive: true });
+  fs.writeFileSync(path.join(directory, 'content/messages/2026-10-29.txt'), 'Published earlier');
+  fs.writeFileSync(path.join(directory, 'gospel_messages.json'), archiveBytes);
+  const feed = snapshot();
+  feed.days[3].readings.readings.gospel = 'Mark 1:1-8';
+  const result = await openBatch({ root: directory, today: '2026-10-29', snapshot: feed, fetchImpl: () => { throw new Error('offline'); } });
+  assert.deepEqual([result.startDate, result.endDate, result.needsMessage], ['2026-10-30', '2026-11-12', ['2026-11-02']]);
+  const files = fs.readdirSync(path.join(directory, 'content/messages')).sort();
+  assert.equal(files.length, 14);
+  assert.ok(!files.includes('2026-11-02.txt'));
+  assert.equal(fs.readFileSync(path.join(directory, 'content/messages/2026-10-30.txt'), 'utf8'), message.fullText);
+  assert.ok(result.body.includes('**Needs a message.** Mon 2 Nov (Mark 1:1-8).'));
+  assert.ok(result.body.includes('Heading says "Old feast label". The day is Current calendar label.'));
+  assert.deepEqual(await openBatch({ root: directory, today: '2026-10-22', snapshot: feed }), { due: false });
 });
