@@ -8,6 +8,7 @@ const { createHash } = require('node:crypto');
 const { parseApiRef, parseDadCitation, citationMatchesReading, parseReference, GOSPEL_VERSE_COUNTS } = require('../gospel_matcher');
 const { parseChat, collectMessages, extractFields } = require('../parse_gospel');
 const { batchDates, draftBatch, writeDraft, fetchSnapshot, formatPreview, main } = require('../scripts/draft-content');
+const { nextStartDate, openBatch, missingUpcomingDates } = require('../scripts/open-batch');
 
 const root = path.resolve(__dirname, '..');
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -22,6 +23,9 @@ function snapshot(start = '2026-10-30') {
     calendar: { date, celebration: { name: 'Current calendar label' } }, calendarHold: null,
   })) };
 }
+const messagesDirectory = path.join(root, 'content/messages');
+const approvedState = () => sha256(JSON.stringify([sha256(fs.readFileSync(path.join(root, 'gospel_messages.json'))),
+  ...fs.readdirSync(messagesDirectory).sort().map(file => [file, sha256(fs.readFileSync(path.join(messagesDirectory, file)))])]));
 function draft(feed = snapshot()) { return draftBatch({ startDate: '2026-10-30', archiveBytes, archivePath: 'fixture.json', snapshot: feed }); }
 
 test('whole citation must fit the complete disjoint union', () => {
@@ -214,8 +218,7 @@ test('draft output repeats safely, refuses different bytes, and cannot write app
   const directory = temporary(t);
   const output = path.join(directory, 'draft');
   const batch = draft();
-  const approvedPaths = ['gospel_messages.json', 'content/schedule.json'];
-  const before = approvedPaths.map(file => sha256(fs.readFileSync(path.join(root, file))));
+  const before = approvedState();
   writeDraft(output, batch, snapshot());
   writeDraft(output, batch, snapshot());
   const stored = JSON.parse(fs.readFileSync(path.join(output, 'draft-batch.json')));
@@ -228,7 +231,7 @@ test('draft output repeats safely, refuses different bytes, and cannot write app
   const link = path.join(directory, 'linked-content');
   fs.symlinkSync(path.join(root, 'content'), link);
   assert.throws(() => writeDraft(path.join(link, 'review-test'), batch, snapshot()), /approved content/);
-  assert.deepEqual(approvedPaths.map(file => sha256(fs.readFileSync(path.join(root, file)))), before);
+  assert.equal(approvedState(), before);
 });
 
 test('offline CLI creates fourteen review dates without changing approved files', t => {
@@ -328,4 +331,59 @@ test('committed archive stores the fields the importer reads from each message',
     const fields = extractFields({ text: record.fullText, date: '30/10/26' });
     assert.deepEqual([record.citation, record.verse, record.closing], [fields.citation, fields.verse, fields.closing], `source #${index}`);
   }
+});
+
+test('upcoming published messages leave no day out', () => {
+  const published = [...batchDates('2026-10-30').slice(0, 14), '2026-11-21', '2026-11-22', '2026-11-24'];
+  assert.deepEqual(missingUpcomingDates(published, '2026-11-20'), ['2026-11-23']);
+  assert.deepEqual(missingUpcomingDates(published, '2026-11-05'), ['2026-11-13', '2026-11-14', '2026-11-15', '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-23']);
+  assert.deepEqual(missingUpcomingDates(published.slice(0, 14), '2026-11-20'), []);
+});
+
+test('published messages from today on are consecutive and decode as UTF-8 text', () => {
+  const files = fs.readdirSync(messagesDirectory).filter(file => file !== '.gitkeep').sort();
+  for (const file of files) {
+    assert.match(file, /^\d{4}-\d{2}-\d{2}\.txt$/);
+    const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(fs.readFileSync(path.join(messagesDirectory, file)));
+    assert.ok(text.trim() && !text.startsWith('\uFEFF'), `${file} is empty or starts with a byte order mark`);
+  }
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+  assert.deepEqual(missingUpcomingDates(files.map(file => file.slice(0, 10)), today), [], 'Add content/messages/<date>.txt for each missing date');
+});
+
+test('a batch is due when fewer than 21 days of published messages remain', () => {
+  const published = batchDates('2026-10-30').slice(2);
+  assert.equal(nextStartDate(published, '2026-10-30'), '2026-11-13');
+  assert.equal(nextStartDate(published, '2026-10-22'), null);
+  assert.equal(nextStartDate(published, '2026-10-23'), '2026-11-13');
+  assert.equal(nextStartDate([], '2026-10-30'), '2026-10-31');
+  assert.equal(nextStartDate(published, '2026-11-20'), '2026-11-21');
+});
+
+test('opening a batch writes proposed messages and lists dates that need one', async t => {
+  const directory = temporary(t);
+  fs.mkdirSync(path.join(directory, 'content/messages'), { recursive: true });
+  fs.writeFileSync(path.join(directory, 'content/messages/2026-10-29.txt'), 'Published earlier');
+  fs.writeFileSync(path.join(directory, 'gospel_messages.json'), archiveBytes);
+  const feed = snapshot();
+  feed.days[3].readings.readings.gospel = 'Mark 1:1-8';
+  const result = await openBatch({ root: directory, today: '2026-10-29', snapshot: feed, fetchImpl: () => { throw new Error('offline'); } });
+  assert.deepEqual([result.startDate, result.endDate, result.needsMessage], ['2026-10-30', '2026-11-12', ['2026-11-02']]);
+  const files = fs.readdirSync(path.join(directory, 'content/messages')).sort();
+  assert.equal(files.length, 14);
+  assert.ok(!files.includes('2026-11-02.txt'));
+  assert.equal(fs.readFileSync(path.join(directory, 'content/messages/2026-10-30.txt'), 'utf8'), message.fullText);
+  assert.ok(result.body.includes('**Needs a message.** Mon 2 Nov (Mark 1:1-8).'));
+  assert.ok(result.body.includes('Heading says "Old feast label". The day is Current calendar label.'));
+  assert.deepEqual(await openBatch({ root: directory, today: '2026-10-22', snapshot: feed }), { due: false });
+});
+
+test('a batch with no proposed message fails and names its dates', async t => {
+  const directory = temporary(t);
+  fs.mkdirSync(path.join(directory, 'content/messages'), { recursive: true });
+  fs.writeFileSync(path.join(directory, 'gospel_messages.json'), archiveBytes);
+  const feed = snapshot();
+  for (const day of feed.days) day.readings.readings.gospel = 'Mark 1:1-8';
+  await assert.rejects(openBatch({ root: directory, today: '2026-10-29', snapshot: feed }), /No archive message for 2026-10-30 to 2026-11-12/);
+  assert.deepEqual(fs.readdirSync(path.join(directory, 'content/messages')), []);
 });

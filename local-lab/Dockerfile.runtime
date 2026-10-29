@@ -16,5 +16,7 @@ COPY --from=build /app/dist ./dist
 COPY local-lab/package.json ./
 COPY local-lab/migrations ./migrations
 COPY content ./content
+COPY scripts/index-content.mjs ./scripts/index-content.mjs
+RUN node scripts/index-content.mjs && rm -r scripts
 USER node
 CMD ["node", "dist/runtime.js", "service"]
