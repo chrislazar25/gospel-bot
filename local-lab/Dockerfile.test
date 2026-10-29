@@ -10,4 +10,4 @@ COPY local-lab/package.json ./local-lab/package.json
 COPY local-lab/migrations ./local-lab/migrations
 RUN npm run check && npm run build
 USER node
-CMD ["sh", "-c", "node --test dist/runtime.unit.test.js dist/runtime.integration.test.js scripts/cloud/neon-role.test.mjs && node scripts/cloud/neon-existing.pg.test.mjs"]
+CMD ["sh", "-c", "node --test dist/runtime.unit.test.js dist/runtime.integration.test.js scripts/cloud/neon-role.test.mjs && node --test dist/canary.unit.test.js dist/canary.integration.test.js && node scripts/cloud/neon-existing.pg.test.mjs"]

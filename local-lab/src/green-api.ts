@@ -7,10 +7,7 @@ const receiptSchema = z.object({
   statusMessage: z.enum(['pending', 'sent', 'yellowCard', 'delivered', 'read', 'failed']),
 });
 export const greenConfigSchema = z.object({
-  url: z.url().refine(value => {
-    const url = new URL(value);
-    return url.protocol === 'https:' && /^([a-z0-9-]+\.)?api\.green-api\.com$/.test(url.hostname) && !url.username && !url.password && !url.port && url.pathname === '/' && !url.search && !url.hash;
-  }, 'Use the assigned Green API HTTPS origin'),
+  url: z.url().regex(/^https:\/\/(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)?api\.green-?api\.com\/?$/, 'Use the assigned Green API HTTPS origin'),
   instanceId: z.string().regex(/^\d+$/), token: z.string().regex(/^[A-Za-z0-9_-]+$/),
 });
 export function createGreenApi(config: z.infer<typeof greenConfigSchema>, request: typeof fetch = fetch): Provider {

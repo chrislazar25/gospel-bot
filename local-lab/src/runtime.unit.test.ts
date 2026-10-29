@@ -24,8 +24,8 @@ test('disabled defaults, explicit booleans, first date, window, and IST midnight
 
 test('provider configuration rejects unapproved origins and URL credential paths', () => {
   const config = { url: 'https://7103.api.green-api.com', instanceId: '1234', token: 'test-token' };
-  assert.equal(greenConfigSchema.parse(config).url, config.url);
-  for (const url of ['http://api.green-api.com', 'https://evil.example', 'https://api.green-api.com.evil.example', 'https://secret@api.green-api.com', 'https://api.green-api.com/path', 'https://api.green-api.com?token=secret']) assert.throws(() => greenConfigSchema.parse({ ...config, url }));
+  for (const url of ['https://7107.api.greenapi.com', 'https://7103.api.green-api.com', 'https://api.greenapi.com/', config.url]) assert.equal(greenConfigSchema.parse({ ...config, url }).url, url);
+  for (const url of ['http://api.green-api.com', 'https://evil.example', 'https://api.green-api.com.evil.example', 'https://secret@api.green-api.com', 'https://api.green-api.com/path', 'https://api.green-api.com?token=secret', 'https://api.greenapi.com:443', 'https://7107.api.greenapi.com:8443', 'https://api.greenapi.com#secret', 'https://api.greenapi.com.evil.example', 'https://-bad.api.greenapi.com', 'https://bad-.api.greenapi.com', 'https://a.b.api.greenapi.com', 'https://token:secret@7107.api.greenapi.com', 'https://7107.api.greenapi.com/%2e%2e']) assert.throws(() => greenConfigSchema.parse({ ...config, url }));
 });
 
 test('content coverage uses exact bytes and rejects tampering, missing days, and invalid dates', async () => {

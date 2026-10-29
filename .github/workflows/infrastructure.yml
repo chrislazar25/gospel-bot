@@ -10,7 +10,7 @@ on:
         required: true
       operation:
         type: choice
-        options: [plan, secrets, apply, smoke-plan, smoke-apply]
+        options: [plan, secrets, apply, smoke-plan, smoke-apply, canary-plan, canary-apply]
         default: plan
         required: true
 permissions:
@@ -28,16 +28,18 @@ jobs:
           terraform_version: 1.14.0
       - run: terraform fmt -check -recursive infra
       - run: |
-          for dir in infra/bootstrap infra/environment infra/smoke; do
+          for dir in infra/bootstrap infra/environment infra/smoke infra/canary; do
             terraform -chdir="$dir" init -backend=false
             terraform -chdir="$dir" validate
           done
       - run: terraform -chdir=infra/environment test
+      - run: terraform -chdir=infra/canary test
+      - run: node scripts/cloud/canary.test.mjs
       - run: for script in scripts/cloud/*.sh; do bash -n "$script"; done
       - run: for module in scripts/cloud/neon*.mjs; do node --check "$module"; done
       - run: node scripts/cloud/verify-workflows.mjs
   manage:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' && inputs.operation != 'smoke-plan' && inputs.operation != 'smoke-apply'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' && inputs.operation != 'smoke-plan' && inputs.operation != 'smoke-apply' && inputs.operation != 'canary-plan' && inputs.operation != 'canary-apply'
     needs: validate
     runs-on: ubuntu-24.04
     environment: ${{ inputs.environment }}
@@ -110,4 +112,44 @@ jobs:
           terraform -chdir=infra/smoke plan -out=deployment.plan
           if [[ "$OPERATION" == smoke-apply ]]; then
             terraform -chdir=infra/smoke apply deployment.plan
+          fi
+  canary:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' && (inputs.operation == 'canary-plan' || inputs.operation == 'canary-apply')
+    needs: validate
+    runs-on: ubuntu-24.04
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_VAR_environment: ${{ inputs.environment }}
+      TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+      TF_VAR_region: ${{ vars.GCP_REGION || 'us-central1' }}
+      TF_VAR_image: ${{ vars.CANARY_IMAGE }}
+      TF_VAR_revision: ${{ vars.CANARY_REVISION }}
+      TF_VAR_target_chat_id: ${{ vars.CANARY_TARGET_CHAT_ID }}
+      TF_VAR_green_api_url: ${{ vars.GREEN_API_URL }}
+      TF_VAR_green_api_id: ${{ vars.GREEN_API_ID }}
+      TF_VAR_secret_versions: ${{ vars.SECRET_VERSIONS_JSON }}
+      STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      OPERATION: ${{ inputs.operation }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Require staging for canary infrastructure
+        if: inputs.environment != 'staging'
+        run: exit 1
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: gospel-infra-staging@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.14.0
+      - run: terraform -chdir=infra/canary init -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=staging/canary"
+      - run: |
+          terraform -chdir=infra/canary plan -out=deployment.plan
+          if [[ "$OPERATION" == canary-apply ]]; then
+            terraform -chdir=infra/canary apply deployment.plan
+            gcloud run jobs execute gospel-staging-canary-migrate --wait --region="$TF_VAR_region" --project="$TF_VAR_project_id" --quiet
           fi

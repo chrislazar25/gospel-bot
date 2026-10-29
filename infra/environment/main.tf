@@ -26,8 +26,8 @@ variable "green_api_url" {
   default = null
   type    = string
   validation {
-    condition     = var.green_api_url == null ? true : can(regex("^https://[a-zA-Z0-9-]+\\.api\\.green-api\\.com$", var.green_api_url))
-    error_message = "Use the instance assigned HTTPS api.green-api.com host."
+    condition     = var.green_api_url == null ? true : can(regex("^https://([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)?api\\.green-?api\\.com/?$", var.green_api_url))
+    error_message = "Use the assigned HTTPS api.greenapi.com or api.green-api.com origin."
   }
 }
 variable "green_api_id" {
