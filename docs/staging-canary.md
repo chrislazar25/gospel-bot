@@ -10,18 +10,23 @@ The payload is exactly:
 
 > Gospel Bot staging test. This is a single test message. Daily Gospel delivery remains disabled.
 
-`runCanary` reuses migration 001, the `green-api` delivery channel and the reserved
-ledger date `1970-01-01`. That permanent identity allows at most one provider
-submission attempt for an unchanged recipient. It does not guarantee exactly
-once delivery. A crash after the database claim may consume the attempt without
-sending anything. A lost HTTP response may leave delivery unknown permanently.
-Unknown and failed deliveries must be investigated, never reset or retried.
-Changing the recipient permits another message and requires a separate human
-review. Keep the configured recipient stable.
+`runCanary` reuses migration 001 and the `green-api` delivery channel. Each
+attempt records under a reserved 1970 ledger date: attempt 1 is `1970-01-01`,
+attempt 2 is `1970-01-02`, and so on up to 365. The staging `CANARY_ATTEMPT`
+variable sets the attempt. One attempt allows at most one provider submission
+for an unchanged recipient. It does not guarantee exactly once delivery. A crash
+after the database claim may consume the attempt without sending anything. A
+lost HTTP response may leave delivery unknown permanently. Unknown and failed
+deliveries must be investigated, never reset or retried. To send again after an
+investigation, raise `CANARY_ATTEMPT` by one and repeat plan, apply and execute.
+Earlier attempts keep their rows. Changing the recipient also permits another
+message and requires a separate human review.
 
 An accepted response is not proof of delivery. The job checks at most twelve
 receipts, with five seconds between checks. Only a correlated `delivered` or
-`read` receipt produces confirmation. Accepted reruns only reconcile the existing
+`read` receipt produces confirmation. Keep the Green API instance setting
+`outgoingWebhook` at `yes`. With it off, the first staging attempt stayed `sent`
+after the recipient received it. Accepted reruns only reconcile the existing
 provider ID. Confirmed reruns report `priorConfirmation: true` without sending.
 Mismatched stored payload bytes or hashes fail before any provider submission.
 Concurrent insert races are also checked at the provider boundary.
@@ -44,7 +49,7 @@ also requires a master `workflow_dispatch` in the exact Release workflow's
 
 The GitHub staging environment needs the existing GCP project, region, state
 bucket and WIF settings, the assigned `GREEN_API_URL`, numeric `GREEN_API_ID`,
-private `CANARY_TARGET_CHAT_ID`, and `SECRET_VERSIONS_JSON`. Pin numeric versions
+private `CANARY_TARGET_CHAT_ID`, `CANARY_ATTEMPT`, and `SECRET_VERSIONS_JSON`. Pin numeric versions
 for the four existing `gospel-staging-{database,status-database,migration-database,green-token}`
 secrets. No credential value belongs in GitHub variables or this document.
 Runtime and status URLs must select the same host/database, the `gospel_runtime`

@@ -49,6 +49,13 @@ variable "target_chat_id" {
     error_message = "Use the authorized private test chat. Groups are forbidden."
   }
 }
+variable "attempt" {
+  type = number
+  validation {
+    condition     = var.attempt == floor(var.attempt) && var.attempt >= 1 && var.attempt <= 365
+    error_message = "Use a whole canary attempt number from 1 to 365. Raise it only to send a new reviewed attempt."
+  }
+}
 variable "green_api_url" {
   type = string
   validation {
@@ -89,6 +96,7 @@ locals {
     APP_ENV                  = "staging"
     CANARY_CONFIRMATION      = "send-one-marked-private-staging-test"
     CANARY_TARGET_CHAT_ID    = var.target_chat_id
+    CANARY_ATTEMPT           = tostring(var.attempt)
     CANARY_EXPECTED_REVISION = var.revision
     GREEN_API_URL            = var.green_api_url
     GREEN_API_ID             = var.green_api_id
