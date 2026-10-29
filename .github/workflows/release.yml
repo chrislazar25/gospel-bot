@@ -10,6 +10,10 @@ on:
         description: Publish an initial staging candidate without deploying
         type: boolean
         default: false
+      smoke_only:
+        description: Run the isolated staging smoke job without an application release
+        type: boolean
+        default: false
       staging_run_id:
         description: Successful staging Release run ID required for production
         type: string
@@ -20,7 +24,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   release:
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master' && !inputs.smoke_only
     environment: ${{ inputs.environment }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -88,4 +92,37 @@ jobs:
           path: |
             image.txt
             environment.txt
+          retention-days: 30
+  cloud-smoke:
+    if: github.ref == 'refs/heads/master' && inputs.smoke_only
+    environment: staging
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      APP_ENV: staging
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Require a staging smoke execution
+        if: inputs.environment != 'staging' || inputs.build_only
+        run: exit 1
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: gospel-release-staging@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db
+      - name: Publish the locally verified smoke image
+        run: scripts/cloud/cloud-smoke.sh publish
+      - name: Execute the precreated staging smoke job
+        run: scripts/cloud/cloud-smoke.sh execute
+      - name: Preserve staging smoke evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cloud-smoke-evidence
+          path: cloud-smoke-evidence/
           retention-days: 30

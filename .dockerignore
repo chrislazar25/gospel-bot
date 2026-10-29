@@ -8,3 +8,6 @@
 **/*.tfstate*
 **/*.tfvars
 **/gha-creds-*.json
+cloud-smoke-evidence
+cloud-smoke-local-evidence
+smoke-image.txt

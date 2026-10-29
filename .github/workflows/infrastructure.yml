@@ -10,7 +10,7 @@ on:
         required: true
       operation:
         type: choice
-        options: [plan, secrets, apply]
+        options: [plan, secrets, apply, smoke-plan, smoke-apply]
         default: plan
         required: true
 permissions:
@@ -28,7 +28,7 @@ jobs:
           terraform_version: 1.14.0
       - run: terraform fmt -check -recursive infra
       - run: |
-          for dir in infra/bootstrap infra/environment; do
+          for dir in infra/bootstrap infra/environment infra/smoke; do
             terraform -chdir="$dir" init -backend=false
             terraform -chdir="$dir" validate
           done
@@ -36,7 +36,7 @@ jobs:
       - run: node --check scripts/cloud/neon.mjs
       - run: node scripts/cloud/verify-workflows.mjs
   manage:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' && inputs.operation != 'smoke-plan' && inputs.operation != 'smoke-apply'
     needs: validate
     runs-on: ubuntu-24.04
     environment: ${{ inputs.environment }}
@@ -75,4 +75,36 @@ jobs:
           terraform -chdir=infra/environment plan "${options[@]}" -out=deployment.plan
           if [[ "$OPERATION" != plan ]]; then
             terraform -chdir=infra/environment apply deployment.plan
+          fi
+  smoke:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' && (inputs.operation == 'smoke-plan' || inputs.operation == 'smoke-apply')
+    needs: validate
+    runs-on: ubuntu-24.04
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_VAR_project_id: ${{ vars.GCP_PROJECT_ID }}
+      TF_VAR_region: ${{ vars.GCP_REGION || 'us-central1' }}
+      TF_VAR_image: ${{ vars.SMOKE_IMAGE }}
+      STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+      OPERATION: ${{ inputs.operation }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Require staging for smoke infrastructure
+        if: inputs.environment != 'staging'
+        run: exit 1
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: gospel-infra-staging@${{ vars.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
+        with:
+          terraform_version: 1.14.0
+      - run: terraform -chdir=infra/smoke init -backend-config="bucket=$STATE_BUCKET" -backend-config="prefix=staging/cloud-smoke"
+      - run: |
+          terraform -chdir=infra/smoke plan -out=deployment.plan
+          if [[ "$OPERATION" == smoke-apply ]]; then
+            terraform -chdir=infra/smoke apply deployment.plan
           fi

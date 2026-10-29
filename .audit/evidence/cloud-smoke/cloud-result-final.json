@@ -1,0 +1,17 @@
+{
+  "project": "gospel-bot-493719",
+  "region": "us-central1",
+  "job": "gospel-staging-cloud-smoke",
+  "execution": "gospel-staging-cloud-smoke-8hh8b",
+  "revision": "f74b73d28fc7f50afb2aeaa4ba127b9a444b446c",
+  "image": "us-central1-docker.pkg.dev/gospel-bot-493719/gospel/cloud-smoke@sha256:261e739ef93097de8812d0141b3327c902c81259b9fadb2557d2a134b3c45e38",
+  "url": "https://console.cloud.google.com/run/jobs/executions/details/us-central1/gospel-staging-cloud-smoke-8hh8b?project=864310543997",
+  "checks": 14,
+  "submissions": 1,
+  "attempts": 1,
+  "status": "confirmed",
+  "provider": "loopback-simulator",
+  "database": "ephemeral-postgres-tls",
+  "cleanup": true,
+  "result": "VERIFIED"
+}

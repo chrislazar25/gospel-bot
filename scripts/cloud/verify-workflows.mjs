@@ -14,7 +14,7 @@ const name=path.basename(process.argv[1]);const args=process.argv.slice(2);const
 fs.appendFileSync(process.env.TRACE,JSON.stringify({name,args})+'\\n');
 if(name==='gcloud'){
  if(args[0]==='artifacts'){
-  if(scenario==='new-image'&&!fs.existsSync(process.env.PUSHED)){console.error('NOT_FOUND');process.exit(1)}
+  if(scenario.startsWith('new-image')&&!fs.existsSync(process.env.PUSHED)){console.error(scenario==='new-image-cli'?'Image not found.':'NOT_FOUND');process.exit(1)}
   console.log('${digest}');
  }else if(args[0]==='scheduler')console.log(scenario==='active-schedule'?'ENABLED':'PAUSED');
  else if(args[0]==='run'&&args[1]==='services'&&args[2]==='describe')console.log('https://status.invalid');
@@ -70,7 +70,12 @@ try {
   trace = exercise('build.sh', 'new-image', 0);
   assert.ok(trace.some(row => row.name === 'docker' && row.args.includes('RELEASE_SHA=' + 'a'.repeat(40))));
   assert.ok(trace.some(row => row.name === 'docker' && row.args[0] === 'push'));
+  assert.ok(trace.find(row => row.name === 'docker' && row.args[0] === 'push').args.includes('--platform'));
+  assert.ok(trace.find(row => row.name === 'docker' && row.args[0] === 'push').args.includes('linux/amd64'));
   console.log('PASS new image carries its source revision before publication');
+  trace = exercise('build.sh', 'new-image-cli', 0);
+  assert.ok(trace.some(row => row.name === 'docker' && row.args[0] === 'push'));
+  console.log('PASS first build accepts the actual CLI missing-image message');
   trace = exercise('build.sh', 'invalid-content', 1);
   assert.ok(!trace.some(row => row.name === 'docker' && row.args[0] === 'push'));
   console.log('PASS bad content prevents publication');

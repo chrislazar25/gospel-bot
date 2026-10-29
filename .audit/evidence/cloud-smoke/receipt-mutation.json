@@ -1,0 +1,10 @@
+{
+  "image": "gospel-cloud-smoke:review-fix",
+  "mutation": "receipt-mutation",
+  "path": "/app/dist/green-api.js",
+  "before": "parsed.chatId !== delivery.target",
+  "after": "false",
+  "exitCode": 1,
+  "stderr": "{\"severity\":\"ERROR\",\"event\":\"cloud_smoke_failed\",\"runId\":\"0fd6e441-fcbe-4ec2-b2b1-96181104cd3d\",\"message\":\"Expected values to be strictly equal:\\n+ actual - expected\\n\\n+ 'confirmed'\\n- 'accepted'\\n\"}\n",
+  "result": "PASS"
+}

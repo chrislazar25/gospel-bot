@@ -1,0 +1,10 @@
+{
+  "image": "gospel-cloud-smoke:local",
+  "mutation": "status-permission-mutation",
+  "path": "/verification/run.mjs",
+  "before": "passed('read-only status role reports the confirmed delivery');",
+  "after": "await client.query('GRANT UPDATE(evidence) ON deliveries TO gospel_status');passed('read-only status role reports the confirmed delivery');",
+  "exitCode": 0,
+  "stderr": "",
+  "result": "FAIL"
+}
