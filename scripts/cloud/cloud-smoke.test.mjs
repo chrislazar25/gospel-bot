@@ -17,6 +17,14 @@ const args = process.argv.slice(2);
 const scenario = process.env.SCENARIO;
 fs.appendFileSync(process.env.TRACE, JSON.stringify({name, args}) + '\\n');
 if (name === 'docker' && args[0] === 'run' && scenario === 'local-fails') process.exit(1);
+if (name === 'docker' && args[0] === 'run' && scenario !== 'missing-proof') console.log(JSON.stringify({
+  event: 'cloud_smoke_verified', revision: scenario === 'wrong-proof-revision' ? 'c'.repeat(40) : process.env.GITHUB_SHA,
+  execution: null, provider: 'loopback-simulator', submissions: 1, attempts: 1, status: 'confirmed', cleanup: true,
+}));
+if (name === 'docker' && args[0] === 'image' && args[1] === 'inspect') console.log(JSON.stringify({
+  'org.opencontainers.image.revision': scenario === 'wrong-label-revision' ? 'c'.repeat(40) : process.env.GITHUB_SHA,
+  'io.gospel.image-purpose': scenario === 'wrong-purpose' ? 'runtime' : 'cloud-smoke',
+}));
 if (name === 'docker' && args[0] === 'push') fs.writeFileSync(process.env.PUSHED, 'pushed');
 if (name === 'gcloud') {
   if (args[0] === 'artifacts') {
@@ -76,6 +84,11 @@ try {
   trace = exercise('publish', 'local-fails', 1);
   assert.ok(!trace.some(row => row.name === 'gcloud' || row.args[0] === 'push'));
   console.log('PASS failed local proof prevents cloud publication');
+  for (const scenario of ['wrong-proof-revision', 'missing-proof']) {
+    trace = exercise('publish', scenario, 1);
+    assert.ok(!trace.some(row => row.name === 'gcloud' || row.args[0] === 'push'));
+  }
+  console.log('PASS missing proof or a different runtime revision prevents publication');
   writeFileSync(join(directory, 'uncommitted'), 'change');
   assert.equal(exercise('publish', 'dirty-source', 1).length, 0);
   rmSync(join(directory, 'uncommitted'));
@@ -94,6 +107,11 @@ try {
     assert.equal(trace.length, 0, JSON.stringify({scenario, trace}));
   }
   console.log('PASS execution rejects another project or a mutable tag before gcloud');
+  for (const scenario of ['wrong-label-revision', 'wrong-purpose']) {
+    trace = exercise('execute', scenario, 1);
+    assert.ok(!trace.some(row => row.name === 'gcloud'));
+  }
+  console.log('PASS execution verifies the image revision and smoke purpose before cloud mutation');
   trace = exercise('execute', 'success', 0);
   const mutations = trace.filter(row => row.args[0] === 'run' && ['update', 'execute'].includes(row.args[2]));
   assert.equal(mutations.length, 2);

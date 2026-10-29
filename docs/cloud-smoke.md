@@ -26,7 +26,7 @@ export REGION=us-central1
 scripts/cloud/cloud-smoke.sh publish
 ```
 
-An existing immutable commit tag is reused after the command pulls and verifies that published image in another isolated local run.
+An existing immutable commit tag is reused after the command pulls and verifies that published image in another isolated local run. Both local proofs must report the checked-out source revision, one submission, a confirmed receipt, and successful cleanup.
 
 3. Initialize separate smoke state, review the plan, and apply that saved plan.
 
@@ -48,7 +48,7 @@ The module creates `gospel-staging-cloud-smoke`, its service account, and resour
 scripts/cloud/cloud-smoke.sh execute
 ```
 
-The command updates only `gospel-staging-cloud-smoke`. It rejects production and digests outside the configured project's `gospel/cloud-smoke` repository before cloud mutation. It waits for completion and saves execution metadata in `cloud-smoke-evidence/execution.json`. A successful result requires one successful task, a completed condition, no failed or cancelled tasks, the fixed job name, and the exact image digest. `success.json` records that execution and the checked-out revision. Publishing records the build revision separately in `release-sha.txt`.
+The command updates only `gospel-staging-cloud-smoke`. It rejects production and digests outside the configured project's `gospel/cloud-smoke` repository before cloud mutation. It pulls that digest and checks the image's source revision and smoke-purpose labels before updating the job. It waits for completion and saves execution metadata in `cloud-smoke-evidence/execution.json`. A successful result requires one successful task, a completed condition, no failed or cancelled tasks, the fixed job name, and the exact image digest. `success.json` records that execution and the checked-out revision. Publishing records the build revision separately in `release-sha.txt`.
 
 ## Run from GitHub Actions after merge
 

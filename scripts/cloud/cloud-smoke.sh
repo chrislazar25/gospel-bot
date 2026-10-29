@@ -10,12 +10,22 @@ SHA=$(git rev-parse HEAD)
 EVIDENCE=cloud-smoke-evidence
 JOB=gospel-staging-cloud-smoke
 
+verify_local_proof() {
+  jq -se --arg sha "$SHA" '
+    map(select(.event == "cloud_smoke_verified")) |
+    length == 1 and .[0].revision == $sha and .[0].execution == null and
+    .[0].provider == "loopback-simulator" and .[0].submissions == 1 and
+    .[0].attempts == 1 and .[0].status == "confirmed" and .[0].cleanup == true
+  ' "$1" >/dev/null
+}
+
 local_proof() {
   mkdir -p "$EVIDENCE"
   rm -f "$EVIDENCE/success.json" "$EVIDENCE/execution.json"
   docker build --platform linux/amd64 --build-arg "RELEASE_SHA=$SHA" -f local-lab/Dockerfile.runtime -t "gospel-cloud-smoke-runtime:$SHA" .
   docker build --platform linux/amd64 --build-arg "RUNTIME_IMAGE=gospel-cloud-smoke-runtime:$SHA" -f local-lab/cloud-smoke/Dockerfile -t "gospel-cloud-smoke:$SHA" .
   docker run --rm --network none -e APP_ENV=staging "gospel-cloud-smoke:$SHA" | tee "$EVIDENCE/local.jsonl"
+  verify_local_proof "$EVIDENCE/local.jsonl"
 }
 
 if [[ "$MODE" == local ]]; then
@@ -38,6 +48,7 @@ if [[ "$MODE" == publish ]]; then
     [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1
     docker pull "$REPOSITORY@$DIGEST"
     docker run --rm --network none -e APP_ENV=staging "$REPOSITORY@$DIGEST" | tee "$EVIDENCE/published.jsonl"
+    verify_local_proof "$EVIDENCE/published.jsonl"
   else
     [[ "$(cat "$ERROR_FILE")" == *NOT_FOUND* ]] || { cat "$ERROR_FILE" >&2; exit 1; }
     docker tag "gospel-cloud-smoke:$SHA" "$REPOSITORY:$SHA"
@@ -57,6 +68,9 @@ IMAGE=$(cat smoke-image.txt)
 DIGEST="${IMAGE#"$REPOSITORY@"}"
 [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1
 cp smoke-image.txt "$EVIDENCE/smoke-image.txt"
+docker pull "$IMAGE"
+docker image inspect --format '{{json .Config.Labels}}' "$IMAGE" > "$EVIDENCE/image-labels.json"
+jq -e --arg sha "$SHA" '.["org.opencontainers.image.revision"] == $sha and .["io.gospel.image-purpose"] == "cloud-smoke"' "$EVIDENCE/image-labels.json" >/dev/null
 gcloud run jobs update "$JOB" --image="$IMAGE" --region="$REGION" --project="$GCP_PROJECT_ID" --quiet
 EXECUTION=$(gcloud run jobs execute "$JOB" --wait --region="$REGION" --project="$GCP_PROJECT_ID" --format='value(metadata.name)')
 [[ "$EXECUTION" =~ ^gospel-staging-cloud-smoke-[a-z0-9]+$ ]] || exit 1
