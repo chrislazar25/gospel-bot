@@ -13,7 +13,7 @@ if DIGEST=$(gcloud artifacts docker images describe "$IMAGE:$GITHUB_SHA" --forma
   docker pull "$IMAGE@$DIGEST"
   docker run --rm -e APP_ENV "$IMAGE@$DIGEST" node dist/runtime.js content-check
 else
-  grep -q NOT_FOUND "$ERROR_FILE" || { cat "$ERROR_FILE" >&2; exit 1; }
+  grep -Eq 'NOT_FOUND|Image not found\.' "$ERROR_FILE" || { cat "$ERROR_FILE" >&2; exit 1; }
   docker build --platform linux/amd64 --build-arg "RELEASE_SHA=$GITHUB_SHA" -f local-lab/Dockerfile.runtime -t "$IMAGE:$GITHUB_SHA" .
   docker run --rm -e APP_ENV "$IMAGE:$GITHUB_SHA" node dist/runtime.js content-check
   docker push "$IMAGE:$GITHUB_SHA"
