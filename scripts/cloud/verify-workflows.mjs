@@ -70,6 +70,8 @@ try {
   trace = exercise('build.sh', 'new-image', 0);
   assert.ok(trace.some(row => row.name === 'docker' && row.args.includes('RELEASE_SHA=' + 'a'.repeat(40))));
   assert.ok(trace.some(row => row.name === 'docker' && row.args[0] === 'push'));
+  assert.ok(trace.find(row => row.name === 'docker' && row.args[0] === 'push').args.includes('--platform'));
+  assert.ok(trace.find(row => row.name === 'docker' && row.args[0] === 'push').args.includes('linux/amd64'));
   console.log('PASS new image carries its source revision before publication');
   trace = exercise('build.sh', 'new-image-cli', 0);
   assert.ok(trace.some(row => row.name === 'docker' && row.args[0] === 'push'));

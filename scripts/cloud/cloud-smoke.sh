@@ -24,7 +24,7 @@ local_proof() {
   rm -f "$EVIDENCE/success.json" "$EVIDENCE/execution.json"
   docker build --platform linux/amd64 --build-arg "RELEASE_SHA=$SHA" -f local-lab/Dockerfile.runtime -t "gospel-cloud-smoke-runtime:$SHA" .
   docker build --platform linux/amd64 --build-arg "RUNTIME_IMAGE=gospel-cloud-smoke-runtime:$SHA" -f local-lab/cloud-smoke/Dockerfile -t "gospel-cloud-smoke:$SHA" .
-  docker run --rm --network none -e APP_ENV=staging "gospel-cloud-smoke:$SHA" | tee "$EVIDENCE/local.jsonl"
+  docker run --rm --platform linux/amd64 --network none -e APP_ENV=staging "gospel-cloud-smoke:$SHA" | tee "$EVIDENCE/local.jsonl"
   verify_local_proof "$EVIDENCE/local.jsonl"
 }
 
@@ -47,12 +47,12 @@ if [[ "$MODE" == publish ]]; then
   if DIGEST=$(gcloud artifacts docker images describe "$REPOSITORY:$SHA" --project="$GCP_PROJECT_ID" --format='value(image_summary.digest)' 2>"$ERROR_FILE"); then
     [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1
     docker pull "$REPOSITORY@$DIGEST"
-    docker run --rm --network none -e APP_ENV=staging "$REPOSITORY@$DIGEST" | tee "$EVIDENCE/published.jsonl"
+    docker run --rm --platform linux/amd64 --network none -e APP_ENV=staging "$REPOSITORY@$DIGEST" | tee "$EVIDENCE/published.jsonl"
     verify_local_proof "$EVIDENCE/published.jsonl"
   else
     grep -Eq 'NOT_FOUND|Image not found\.' "$ERROR_FILE" || { cat "$ERROR_FILE" >&2; exit 1; }
     docker tag "gospel-cloud-smoke:$SHA" "$REPOSITORY:$SHA"
-    docker push "$REPOSITORY:$SHA"
+    docker push --platform linux/amd64 "$REPOSITORY:$SHA"
     DIGEST=$(gcloud artifacts docker images describe "$REPOSITORY:$SHA" --project="$GCP_PROJECT_ID" --format='value(image_summary.digest)')
   fi
   [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || exit 1

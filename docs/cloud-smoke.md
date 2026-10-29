@@ -4,7 +4,7 @@ Run these commands from the repository root. The smoke image extends the normal 
 
 ## Verify locally
 
-Install Docker and run the smoke command.
+Install Docker with Engine API 1.46 or later and run the smoke command.
 
 ```sh
 scripts/cloud/cloud-smoke.sh local
@@ -27,6 +27,8 @@ scripts/cloud/cloud-smoke.sh publish
 ```
 
 An existing immutable commit tag is reused after the command pulls and verifies that published image in another isolated local run. Both local proofs must report the checked-out source revision, one submission, a confirmed receipt, and successful cleanup.
+
+Publication pushes the Linux AMD64 manifest explicitly. Docker Desktop can otherwise upload an attestation manifest under the immutable tag before the runnable image. A [platform-specific push](https://docs.docker.com/reference/cli/docker/image/push/) omits the image index and its attestations. Both the smoke and normal runtime publishers use this single-platform path.
 
 3. Initialize separate smoke state, review the plan, and apply that saved plan.
 

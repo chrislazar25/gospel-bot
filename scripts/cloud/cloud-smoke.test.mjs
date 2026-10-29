@@ -103,6 +103,8 @@ try {
   console.log('PASS publication reuses and rechecks an existing immutable smoke image');
   trace = exercise('publish', 'new-image', 0);
   assert.ok(trace.some(row => row.name === 'docker' && row.args[0] === 'push'));
+  assert.ok(trace.find(row => row.name === 'docker' && row.args[0] === 'push').args.includes('--platform'));
+  assert.ok(trace.find(row => row.name === 'docker' && row.args[0] === 'push').args.includes('linux/amd64'));
   assert.ok(trace.findIndex(row => row.args[0] === 'run') < trace.findIndex(row => row.args[0] === 'push'));
   console.log('PASS new publication requires local proof before pushing a separate pinned smoke image');
   trace = exercise('publish', 'new-image-cli', 0);
