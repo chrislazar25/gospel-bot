@@ -32,6 +32,7 @@ jobs:
             terraform -chdir="$dir" init -backend=false
             terraform -chdir="$dir" validate
           done
+      - run: terraform -chdir=infra/environment test
       - run: for script in scripts/cloud/*.sh; do bash -n "$script"; done
       - run: for module in scripts/cloud/neon*.mjs; do node --check "$module"; done
       - run: node scripts/cloud/verify-workflows.mjs
@@ -70,6 +71,8 @@ jobs:
       - run: |
           options=()
           if [[ "$OPERATION" == secrets ]]; then
+            unset TF_VAR_image TF_VAR_green_api_url TF_VAR_green_api_id TF_VAR_target_chat_id
+            unset TF_VAR_monitoring_enabled TF_VAR_secret_versions TF_VAR_notification_email TF_VAR_status_invokers
             options=(-target=google_secret_manager_secret.secret -target=google_secret_manager_secret_iam_member.neon_write -target=google_secret_manager_secret_iam_member.neon_read)
           fi
           terraform -chdir=infra/environment plan "${options[@]}" -out=deployment.plan

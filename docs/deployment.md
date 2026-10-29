@@ -42,6 +42,7 @@ Add these variables to each GitHub environment. Use the same GCP project, WIF pr
 | `NEON_ORG_ID` | Neon organization ID |
 | `NEON_PROJECT_ID` | Existing Neon project ID |
 | `NEON_BRANCH_ID` | Exact existing branch ID, not its display name |
+| `NEON_PARENT_BRANCH_ID` | Staging only: original production branch ID used to prepare the isolated child |
 | `NEON_DATABASE_NAME` | Existing database name, such as `neondb` |
 | `GREEN_API_URL` | Instance-assigned `https://HOST.api.green-api.com` URL |
 | `GREEN_API_ID` | Instance ID |
@@ -60,6 +61,12 @@ Run **Neon databases** on `master` with operation `inspect` first. Inspection is
 
 For local inspection, install dependencies with `npm ci --prefix local-lab` and supply the same five Neon environment values through your secret manager. Run `node scripts/cloud/neon.mjs` or append `inspect`. Never paste the key or a connection URL into a command or logs.
 
+To reserve the original branch for production, set staging `NEON_PARENT_BRANCH_ID` to its ID. Run **Neon databases** on `master` with environment `staging` and operation `prepare-staging`. The workflow creates `gospel-staging` from that exact parent with a read/write endpoint, or reuses a matching child. It verifies the child database and owner before reporting metadata. It requests no connection credentials and does not provision roles or change the parent. A failed or timed-out creation is reconciled through metadata reads; a rerun does not blindly create another branch.
+
+Set staging `NEON_BRANCH_ID` to the verified child ID from the report, then run staging `inspect` again. Keep `NEON_PARENT_BRANCH_ID` fixed to the original production branch. The preparation workflow cannot update GitHub variables. Create this child before provisioning managed roles on the parent.
+
+You can now run **Infrastructure** with operation `secrets`, followed by **Neon databases** with `provision-existing`, before building the application image or configuring Green API. The secret containers and database roles are independent of message delivery. Complete the application settings below before a full deployment.
+
 ## Build the initial image and create secrets
 
 Approved content must contain at least 14 consecutive dates starting today in `Asia/Kolkata`. The repository intentionally starts without approved production content. The container's `content-check` command blocks image publication until that content exists. Review and merge the content before proceeding. Docker builds use repository-root context and `local-lab/Dockerfile.runtime`.
@@ -69,7 +76,7 @@ Run **Release** on `master` with environment `staging` and `build_only` checked.
 Candidate builds cannot run for production. Their artifacts are not promotion evidence. After the resources exist, a normal staging release must pass migrations, authenticated health, and the read-only check before production can consume its `tested-staging-image`.
 Cloud workflows share one concurrency group per environment so infrastructure, Neon provisioning, and release cannot overlap. For each environment, run the following GitHub Actions in order on `master`.
 
-1. Run **Infrastructure** with operation `secrets`. This creates empty secret containers and Neon account permissions. It deliberately targets only these prerequisites.
+1. Run **Infrastructure** with operation `secrets`. This creates four empty secret containers and six scoped Neon account permissions. It needs only the project, region, environment, state bucket, and GCP authentication. Application image, provider configuration, secret versions, chat, invokers, and notification email are not needed for this targeted operation. Full application plans still require those inputs.
 2. After checking the inspection report, run **Neon databases** with operation `provision-existing`. All three `gospel-ENV-{migration-database,database,status-database}` secret containers must already exist. The Neon identity must be able to list and access their versions.
 
    The workflow rechecks the selected metadata and uses the database's actual owner. It validates every stored URL against the direct endpoint, database, role, and TLS policy before any write. It rejects an unrelated public table, conflicting schema ownership or migration history, and a managed role without its stored credential. It accepts an empty public schema or the three app tables with the expected columns, types, and migration checksum.
