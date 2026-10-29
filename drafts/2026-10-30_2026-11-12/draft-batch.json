@@ -9,17 +9,17 @@
   "rite": "Roman Catholic",
   "sourceSnapshot": {
     "archivePath": "gospel_messages.json",
-    "archiveSha256": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80",
+    "archiveSha256": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3",
     "archiveRecords": 1202,
     "readingsSha256": "515cdb40fd714d8981d875f402297c7e7308ef3a50efb624455f364dd8cbf94c",
     "legacyRecordsWithoutSourceIdentity": 1202
   },
   "rankingPolicy": "Lexicographic shortlist by whole-verse coverage, presence of title/verse/closing, exact calendar label, archive date, and archive index. No semantic or pastoral quality claim.",
   "summary": {
-    "mechanicalCandidateDates": 12,
-    "candidates": 11,
-    "gaps": 1,
-    "unsupported": 2
+    "mechanicalCandidateDates": 13,
+    "candidates": 13,
+    "gaps": 0,
+    "unsupported": 1
   },
   "unsupportedArchive": [
     {
@@ -33,42 +33,7 @@
       "reason": "invalid-chapter-or-verse-bounds"
     },
     {
-      "archiveIndex": 54,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 107,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 108,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 109,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 110,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 153,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
       "archiveIndex": 199,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 228,
       "citation": null,
       "reason": "missing-reference"
     },
@@ -76,31 +41,6 @@
       "archiveIndex": 240,
       "citation": "MT(18:4,5&14)",
       "reason": "unsupported-reference-syntax"
-    },
-    {
-      "archiveIndex": 275,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 276,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 277,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 278,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 289,
-      "citation": null,
-      "reason": "missing-reference"
     },
     {
       "archiveIndex": 294,
@@ -113,49 +53,9 @@
       "reason": "invalid-chapter-or-verse-bounds"
     },
     {
-      "archiveIndex": 315,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 317,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
       "archiveIndex": 320,
       "citation": "MK(6:7&12)",
       "reason": "unsupported-reference-syntax"
-    },
-    {
-      "archiveIndex": 324,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 389,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 393,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 424,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 430,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 431,
-      "citation": null,
-      "reason": "missing-reference"
     },
     {
       "archiveIndex": 432,
@@ -163,42 +63,7 @@
       "reason": "unsupported-reference-syntax"
     },
     {
-      "archiveIndex": 449,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 450,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
       "archiveIndex": 454,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 456,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 515,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 553,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 559,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 604,
       "citation": null,
       "reason": "missing-reference"
     },
@@ -208,94 +73,9 @@
       "reason": "invalid-chapter-or-verse-bounds"
     },
     {
-      "archiveIndex": 626,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 653,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 657,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 660,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 677,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
       "archiveIndex": 685,
       "citation": "MT(25:34&40)",
       "reason": "unsupported-reference-syntax"
-    },
-    {
-      "archiveIndex": 701,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 702,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 705,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 717,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 722,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 778,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 801,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 803,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 804,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 805,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 806,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 807,
-      "citation": null,
-      "reason": "missing-reference"
     },
     {
       "archiveIndex": 817,
@@ -308,109 +88,9 @@
       "reason": "invalid-chapter-or-verse-bounds"
     },
     {
-      "archiveIndex": 948,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 955,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 970,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 988,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1014,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1036,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1044,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1046,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1047,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1065,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1067,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1068,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
       "archiveIndex": 1073,
       "citation": "MT(7:21&24)",
       "reason": "unsupported-reference-syntax"
-    },
-    {
-      "archiveIndex": 1085,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1110,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1111,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1113,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1114,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1115,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1172,
-      "citation": null,
-      "reason": "missing-reference"
-    },
-    {
-      "archiveIndex": 1176,
-      "citation": null,
-      "reason": "missing-reference"
     }
   ],
   "days": [
@@ -425,7 +105,7 @@
       "calendarUrl": "https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/10-30.json",
       "calendarHold": null,
       "proposed": {
-        "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:1040",
+        "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:1040",
         "archiveIndex": 1040,
         "archiveDate": "2025-10-30",
         "citation": "LK(14:5)",
@@ -467,7 +147,7 @@
       },
       "alternatives": [
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:421",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:421",
           "archiveIndex": 421,
           "archiveDate": "2021-10-28",
           "citation": "LK(14:5)",
@@ -508,7 +188,7 @@
           ]
         },
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:422",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:422",
           "archiveIndex": 422,
           "archiveDate": "2021-10-28",
           "citation": "LK(14:5)",
@@ -564,7 +244,7 @@
       "calendarUrl": "https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/10-31.json",
       "calendarHold": null,
       "proposed": {
-        "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:983",
+        "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:983",
         "archiveIndex": 983,
         "archiveDate": "2025-08-30",
         "citation": "LK(14:11)",
@@ -606,7 +286,7 @@
       },
       "alternatives": [
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:679",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:679",
           "archiveIndex": 679,
           "archiveDate": "2023-11-03",
           "citation": "LK(14:11)",
@@ -680,7 +360,7 @@
       "calendarUrl": "https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-02.json",
       "calendarHold": null,
       "proposed": {
-        "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:876",
+        "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:876",
         "archiveIndex": 876,
         "archiveDate": "2025-05-06",
         "citation": "JH(6:40)",
@@ -722,7 +402,7 @@
       },
       "alternatives": [
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:423",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:423",
           "archiveIndex": 423,
           "archiveDate": "2021-11-01",
           "citation": "JH(6:40)",
@@ -769,7 +449,7 @@
     },
     {
       "date": "2026-11-03",
-      "state": "unsupported",
+      "state": "candidate",
       "approval": "DRAFT_REQUIRES_REVIEW",
       "gospel": "Luke 14:15-24",
       "season": "Ordinary Time",
@@ -777,11 +457,93 @@
       "readingsUrl": "https://cpbjr.github.io/catholic-readings-api/readings/2026/11-03.json",
       "calendarUrl": "https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-03.json",
       "calendarHold": null,
-      "proposed": null,
-      "alternatives": [],
+      "proposed": {
+        "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:1044",
+        "archiveIndex": 1044,
+        "archiveDate": "2025-11-03",
+        "citation": "LK(14:23-24)",
+        "originalLabel": "Today's",
+        "payload": "Today's Gospel Msg (Parable of The Great Dinner)  Then the master said to the slave, \" Go out into the roads and lanes, and compel people to come in, so that my house may be filled. For I tell you, none of those who were invited will taste my dinner.\" LK (14:23-24) Jesus is Lord, spread the living word of God.",
+        "payloadSha256": "db0b3e8149bf64b5d9c81679b8e608902757d978b51c4b1fd1ace3e88d546cb8",
+        "wordCount": 61,
+        "sourceOccurrences": [],
+        "editorialFindings": [],
+        "provenance": {
+          "sourceIdentityAvailable": false,
+          "senderClaim": "Legacy archive omits sender and original-message identity.",
+          "authorshipVerified": false,
+          "quotationAccuracyVerified": false
+        },
+        "ranking": {
+          "coveredWholeVerses": 2,
+          "readingWholeVerses": 10,
+          "contextFields": [
+            "title",
+            "verse",
+            "closing"
+          ],
+          "calendarLabelExact": false,
+          "reasons": [
+            "All 2 cited whole verse(s) are contained in the reading union.",
+            "Archive has 3 of 3 context fields. This does not establish clarity or completeness of meaning.",
+            "Archive label requires review against the current calendar.",
+            "Archive date breaks ties only. Ranking does not establish pastoral quality."
+          ]
+        },
+        "holds": [
+          "Review every message in this batch. No message is approved.",
+          "Authorship and the exact Scripture quotation remain unverified.",
+          "Review the original dated or feast label. The exact archived payload is preserved without a label rewrite.",
+          "Check meaning in the complete reading, local Roman Catholic calendar, and recent reuse before approval.",
+          "Legacy sender provenance is unavailable. Do not attribute composition to the father."
+        ]
+      },
+      "alternatives": [
+        {
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:109",
+          "archiveIndex": 109,
+          "archiveDate": "2019-11-04",
+          "citation": "Lk(14:23-24)",
+          "originalLabel": "Today's",
+          "payload": "Today's Gospel Msg ( Dine in the Kingdom of God) Jesus said, \" The master then ordered the servant, 'Go out to the highways and country roads and make people come in that my home may be filled. For, I tell you, none of those men who were invited will taste my dinner.'\" Lk(14:23-24) Jesus is Lord, spread the living word of God.",
+          "payloadSha256": "af39387672f3f5cf961c975d364460479b28e5e3a996eaa58d0c6b2ab4160e45",
+          "wordCount": 63,
+          "sourceOccurrences": [],
+          "editorialFindings": [],
+          "provenance": {
+            "sourceIdentityAvailable": false,
+            "senderClaim": "Legacy archive omits sender and original-message identity.",
+            "authorshipVerified": false,
+            "quotationAccuracyVerified": false
+          },
+          "ranking": {
+            "coveredWholeVerses": 2,
+            "readingWholeVerses": 10,
+            "contextFields": [
+              "title",
+              "verse",
+              "closing"
+            ],
+            "calendarLabelExact": false,
+            "reasons": [
+              "All 2 cited whole verse(s) are contained in the reading union.",
+              "Archive has 3 of 3 context fields. This does not establish clarity or completeness of meaning.",
+              "Archive label requires review against the current calendar.",
+              "Archive date breaks ties only. Ranking does not establish pastoral quality."
+            ]
+          },
+          "holds": [
+            "Review every message in this batch. No message is approved.",
+            "Authorship and the exact Scripture quotation remain unverified.",
+            "Review the original dated or feast label. The exact archived payload is preserved without a label rewrite.",
+            "Check meaning in the complete reading, local Roman Catholic calendar, and recent reuse before approval.",
+            "Legacy sender provenance is unavailable. Do not attribute composition to the father."
+          ]
+        }
+      ],
       "heldCandidates": [
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:61",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:61",
           "archiveIndex": 61,
           "archiveDate": "2019-08-04",
           "citation": "LK(14:19)",
@@ -830,11 +592,8 @@
           ]
         }
       ],
-      "reason": "known-quote-citation-mismatch",
-      "eligibleCount": 1,
-      "holds": [
-        "This record quotes the feeding of five thousand but cites Luke 14:19. Luke 14:19 describes an invited guest who bought oxen. Hold this record until an editor resolves the quotation and citation against the complete reading."
-      ]
+      "reason": "archive-shortlist-requires-human-review",
+      "eligibleCount": 3
     },
     {
       "date": "2026-11-04",
@@ -847,7 +606,7 @@
       "calendarUrl": "https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-04.json",
       "calendarHold": null,
       "proposed": {
-        "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:1045",
+        "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:1045",
         "archiveIndex": 1045,
         "archiveDate": "2025-11-04",
         "citation": "LK(14:26)",
@@ -887,10 +646,93 @@
           "Legacy sender provenance is unavailable. Do not attribute composition to the father."
         ]
       },
-      "alternatives": [],
+      "alternatives": [
+        {
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:988",
+          "archiveIndex": 988,
+          "archiveDate": "2025-09-06",
+          "citation": "Lk(14:33)",
+          "originalLabel": "23rd Ordinary Sunday",
+          "payload": "23rd Ordinary Sunday Gospel Msg ( Cost of Discipleship) Jesus said, \" In the same way, anyone of you who does not renounce all his possessions cannot be my disciple.\" Lk(14:33) Jesus is Lord, spread the living word of God.",
+          "payloadSha256": "525b951ba2d3a0541cecb203e7ad37b6ca79723711e15ca64e80bb8c051ab151",
+          "wordCount": 40,
+          "sourceOccurrences": [],
+          "editorialFindings": [],
+          "provenance": {
+            "sourceIdentityAvailable": false,
+            "senderClaim": "Legacy archive omits sender and original-message identity.",
+            "authorshipVerified": false,
+            "quotationAccuracyVerified": false
+          },
+          "ranking": {
+            "coveredWholeVerses": 1,
+            "readingWholeVerses": 9,
+            "contextFields": [
+              "title",
+              "verse",
+              "closing"
+            ],
+            "calendarLabelExact": false,
+            "reasons": [
+              "All 1 cited whole verse(s) are contained in the reading union.",
+              "Archive has 3 of 3 context fields. This does not establish clarity or completeness of meaning.",
+              "Archive label requires review against the current calendar.",
+              "Archive date breaks ties only. Ranking does not establish pastoral quality."
+            ]
+          },
+          "holds": [
+            "Review every message in this batch. No message is approved.",
+            "Authorship and the exact Scripture quotation remain unverified.",
+            "Review the original dated or feast label. The exact archived payload is preserved without a label rewrite.",
+            "Check meaning in the complete reading, local Roman Catholic calendar, and recent reuse before approval.",
+            "Legacy sender provenance is unavailable. Do not attribute composition to the father."
+          ]
+        },
+        {
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:424",
+          "archiveIndex": 424,
+          "archiveDate": "2021-11-02",
+          "citation": "Lk(14:33)",
+          "originalLabel": "Today's",
+          "payload": "Today's Gospel Msg ( Cost of Discipleship) Jesus said, \" In the same way, anyone of you who does not renounce all his possessions cannot be my disciple.\" Lk(14:33) Jesus is Lord, spread the living word of God.",
+          "payloadSha256": "aa3504b4bfaf216ed92f7068e9516cc8b5d62a95893f37800d4fa2769dd3222b",
+          "wordCount": 38,
+          "sourceOccurrences": [],
+          "editorialFindings": [],
+          "provenance": {
+            "sourceIdentityAvailable": false,
+            "senderClaim": "Legacy archive omits sender and original-message identity.",
+            "authorshipVerified": false,
+            "quotationAccuracyVerified": false
+          },
+          "ranking": {
+            "coveredWholeVerses": 1,
+            "readingWholeVerses": 9,
+            "contextFields": [
+              "title",
+              "verse",
+              "closing"
+            ],
+            "calendarLabelExact": false,
+            "reasons": [
+              "All 1 cited whole verse(s) are contained in the reading union.",
+              "Archive has 3 of 3 context fields. This does not establish clarity or completeness of meaning.",
+              "Archive label requires review against the current calendar.",
+              "Archive date breaks ties only. Ranking does not establish pastoral quality."
+            ]
+          },
+          "holds": [
+            "Review every message in this batch. No message is approved.",
+            "Authorship and the exact Scripture quotation remain unverified.",
+            "Review the original dated or feast label. The exact archived payload is preserved without a label rewrite.",
+            "Check meaning in the complete reading, local Roman Catholic calendar, and recent reuse before approval.",
+            "Legacy sender provenance is unavailable. Do not attribute composition to the father."
+          ]
+        }
+      ],
       "heldCandidates": [],
       "reason": "archive-shortlist-requires-human-review",
-      "eligibleCount": 1
+      "eligibleCount": 3
     },
     {
       "date": "2026-11-05",
@@ -903,14 +745,14 @@
       "calendarUrl": "https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-05.json",
       "calendarHold": null,
       "proposed": {
-        "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:924",
-        "archiveIndex": 924,
-        "archiveDate": "2025-06-26",
-        "citation": "LK(15:7)",
-        "originalLabel": "Solemnity of Sacred Heart of Jesus",
-        "payload": "Solemnity of Sacred Heart of Jesus ( Parable of the Lost Sheep) Jesus said, \" Just so, I tell you, there will be more joy in heaven over one sinner who repents than over ninety-nine righteous person who need no repentance.\" LK(15:7) Divine love of God, flows through the Sacred Heart of Jesus. Happy Feast!!!",
-        "payloadSha256": "e5bb910388cd430a08639d19a6f95e5536ca348a1ade8055e7d68e1b1d86a2f3",
-        "wordCount": 55,
+        "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:1046",
+        "archiveIndex": 1046,
+        "archiveDate": "2025-11-05",
+        "citation": "Lk(15:10)",
+        "originalLabel": "Today's",
+        "payload": "Today's Gospel Msg ( Parable of the Lost Sheep and Coin) Jesus said, \" Just so, I tell you, there is joy in the presence of angels of God over one sinner who repents.\" Lk(15:10) Jesus is Lord, spread the living word of God.",
+        "payloadSha256": "cb69abc230269d300f6932c6b82edfb31542e68bef5222969234a21011d70617",
+        "wordCount": 44,
         "sourceOccurrences": [],
         "editorialFindings": [],
         "provenance": {
@@ -945,14 +787,14 @@
       },
       "alternatives": [
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:83",
-          "archiveIndex": 83,
-          "archiveDate": "2019-09-14",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:924",
+          "archiveIndex": 924,
+          "archiveDate": "2025-06-26",
           "citation": "LK(15:7)",
-          "originalLabel": "Today's",
-          "payload": "Today's Gospel Msg ( Parable of the Lost Sheep) Jesus said, \" Just so I tell you, there will be more joy in heaven over one sinner who repents than over ninety-nine righteous persons who need no repentance.\" LK(15:7) Jesus is Lord, spread the living word of God.",
-          "payloadSha256": "34ff86a8e2645ed5d510993ede228ae8fd09b2067e46d1491bd650c3928a7854",
-          "wordCount": 48,
+          "originalLabel": "Solemnity of Sacred Heart of Jesus",
+          "payload": "Solemnity of Sacred Heart of Jesus ( Parable of the Lost Sheep) Jesus said, \" Just so, I tell you, there will be more joy in heaven over one sinner who repents than over ninety-nine righteous person who need no repentance.\" LK(15:7) Divine love of God, flows through the Sacred Heart of Jesus. Happy Feast!!!",
+          "payloadSha256": "e5bb910388cd430a08639d19a6f95e5536ca348a1ade8055e7d68e1b1d86a2f3",
+          "wordCount": 55,
           "sourceOccurrences": [],
           "editorialFindings": [],
           "provenance": {
@@ -986,14 +828,14 @@
           ]
         },
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:44",
-          "archiveIndex": 44,
-          "archiveDate": "2019-06-27",
-          "citation": "LK(15:7)",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:110",
+          "archiveIndex": 110,
+          "archiveDate": "2019-11-06",
+          "citation": "Lk(15:10)",
           "originalLabel": "Today's",
-          "payload": "Today's Gospel Msg ( Parable of the Lost Sheep ) Jesus said, \"I tell you, in just the same way there will be more joy in heaven over one sinner who repents than over ninety-nine righteous people who have no need of repentance.\" LK(15:7) Jesus is Lord, spread the living word of God.",
-          "payloadSha256": "187cdd70ba0ef3e7828b094f42a31edd30f56a106dc2238275ff33f99533bd2e",
-          "wordCount": 53,
+          "payload": "Today's Gospel Msg ( Parable of the Lost Sheep and Coin) Jesus said, \" In just the same way, I tell you, there will be rejoicing among the angels of God over one sinner who repents.\" Lk(15:10) Jesus is Lord, spread the living word of God.",
+          "payloadSha256": "bd5f8aa1ce36cf49cae1b3f6ba3509e11d18a26ce63350eda571fdb7ecf50b8b",
+          "wordCount": 46,
           "sourceOccurrences": [],
           "editorialFindings": [],
           "provenance": {
@@ -1029,11 +871,11 @@
       ],
       "heldCandidates": [],
       "reason": "archive-shortlist-requires-human-review",
-      "eligibleCount": 3
+      "eligibleCount": 5
     },
     {
       "date": "2026-11-06",
-      "state": "gap",
+      "state": "candidate",
       "approval": "DRAFT_REQUIRES_REVIEW",
       "gospel": "Luke 16:1-8",
       "season": "Ordinary Time",
@@ -1041,13 +883,51 @@
       "readingsUrl": "https://cpbjr.github.io/catholic-readings-api/readings/2026/11-06.json",
       "calendarUrl": "https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-06.json",
       "calendarHold": null,
-      "proposed": null,
+      "proposed": {
+        "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:1047",
+        "archiveIndex": 1047,
+        "archiveDate": "2025-11-06",
+        "citation": "Lk(16:8)",
+        "originalLabel": "Today's",
+        "payload": "Today's Gospel Msg ( Dishonest Manager) And the master commended that dishonest steward for acting prudently. \"For the children of this world are more prudent in dealing with their own generation than are the children of light.\" Lk(16:8) Jesus is Lord, spread the living word of God.",
+        "payloadSha256": "890ee5fba6e16b5210a5e684086f4b83c764120364fa168518ec633849d1f10c",
+        "wordCount": 47,
+        "sourceOccurrences": [],
+        "editorialFindings": [],
+        "provenance": {
+          "sourceIdentityAvailable": false,
+          "senderClaim": "Legacy archive omits sender and original-message identity.",
+          "authorshipVerified": false,
+          "quotationAccuracyVerified": false
+        },
+        "ranking": {
+          "coveredWholeVerses": 1,
+          "readingWholeVerses": 8,
+          "contextFields": [
+            "title",
+            "verse",
+            "closing"
+          ],
+          "calendarLabelExact": false,
+          "reasons": [
+            "All 1 cited whole verse(s) are contained in the reading union.",
+            "Archive has 3 of 3 context fields. This does not establish clarity or completeness of meaning.",
+            "Archive label requires review against the current calendar.",
+            "Archive date breaks ties only. Ranking does not establish pastoral quality."
+          ]
+        },
+        "holds": [
+          "Review every message in this batch. No message is approved.",
+          "Authorship and the exact Scripture quotation remain unverified.",
+          "Review the original dated or feast label. The exact archived payload is preserved without a label rewrite.",
+          "Check meaning in the complete reading, local Roman Catholic calendar, and recent reuse before approval.",
+          "Legacy sender provenance is unavailable. Do not attribute composition to the father."
+        ]
+      },
       "alternatives": [],
       "heldCandidates": [],
-      "reason": "no-fully-contained-archive-citation",
-      "holds": [
-        "Specific editorial review must supply or select a message. No generated or Bible fallback text is supplied."
-      ]
+      "reason": "archive-shortlist-requires-human-review",
+      "eligibleCount": 1
     },
     {
       "date": "2026-11-07",
@@ -1060,7 +940,7 @@
       "calendarUrl": "https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-07.json",
       "calendarHold": null,
       "proposed": {
-        "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:1048",
+        "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:1048",
         "archiveIndex": 1048,
         "archiveDate": "2025-11-07",
         "citation": "LK(16:13)",
@@ -1102,7 +982,7 @@
       },
       "alternatives": [
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:1000",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:1000",
           "archiveIndex": 1000,
           "archiveDate": "2025-09-20",
           "citation": "LK(16:13)",
@@ -1143,7 +1023,7 @@
           ]
         },
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:88",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:88",
           "archiveIndex": 88,
           "archiveDate": "2019-09-21",
           "citation": "LK(16:13)",
@@ -1199,7 +1079,7 @@
       "calendarUrl": "https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-08.json",
       "calendarHold": null,
       "proposed": {
-        "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:681",
+        "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:681",
         "archiveIndex": 681,
         "archiveDate": "2023-11-11",
         "citation": "MT(25:11-13)",
@@ -1241,7 +1121,7 @@
       },
       "alternatives": [
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:282",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:282",
           "archiveIndex": 282,
           "archiveDate": "2020-11-07",
           "citation": "MT(25:11-13)",
@@ -1282,7 +1162,7 @@
           ]
         },
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:783",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:783",
           "archiveIndex": 783,
           "archiveDate": "2024-08-29",
           "citation": "MT(25:12,13)",
@@ -1338,7 +1218,7 @@
       "calendarUrl": "https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-09.json",
       "calendarHold": null,
       "proposed": {
-        "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:712",
+        "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:712",
         "archiveIndex": 712,
         "archiveDate": "2024-03-02",
         "citation": "JH(2:17-19)",
@@ -1380,7 +1260,7 @@
       },
       "alternatives": [
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:489",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:489",
           "archiveIndex": 489,
           "archiveDate": "2022-03-19",
           "citation": "JH(2:17-19)",
@@ -1421,7 +1301,7 @@
           ]
         },
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:111",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:111",
           "archiveIndex": 111,
           "archiveDate": "2019-11-07",
           "citation": "JH(2:16,17)",
@@ -1477,7 +1357,7 @@
       "calendarUrl": "https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-10.json",
       "calendarHold": null,
       "proposed": {
-        "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:1050",
+        "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:1050",
         "archiveIndex": 1050,
         "archiveDate": "2025-11-10",
         "citation": "LK(17:10)",
@@ -1519,7 +1399,7 @@
       },
       "alternatives": [
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:113",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:113",
           "archiveIndex": 113,
           "archiveDate": "2019-11-11",
           "citation": "LK(17:10)",
@@ -1575,7 +1455,7 @@
       "calendarUrl": "https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-11.json",
       "calendarHold": null,
       "proposed": {
-        "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:1021",
+        "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:1021",
         "archiveIndex": 1021,
         "archiveDate": "2025-10-11",
         "citation": "LK(17:17-19)",
@@ -1617,7 +1497,7 @@
       },
       "alternatives": [
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:1051",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:1051",
           "archiveIndex": 1051,
           "archiveDate": "2025-11-11",
           "citation": "LK(17:17-18)",
@@ -1658,7 +1538,7 @@
           ]
         },
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:114",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:114",
           "archiveIndex": 114,
           "archiveDate": "2019-11-12",
           "citation": "LK(17:17-18)",
@@ -1714,7 +1594,7 @@
       "calendarUrl": "https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-12.json",
       "calendarHold": null,
       "proposed": {
-        "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:1052",
+        "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:1052",
         "archiveIndex": 1052,
         "archiveDate": "2025-11-12",
         "citation": "LK(17:20-21)",
@@ -1756,7 +1636,7 @@
       },
       "alternatives": [
         {
-          "sourceId": "c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80:115",
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:115",
           "archiveIndex": 115,
           "archiveDate": "2019-11-13",
           "citation": "LK(17:22)",

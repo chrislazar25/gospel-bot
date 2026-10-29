@@ -2,15 +2,15 @@
 
 2026-10-30 through 2026-11-12. Roman Catholic feed. Dates use Asia/Kolkata.
 
-11 candidate dates. 2 dates held as unsupported. Archive gaps: 1. Nothing is approved.
+13 candidate dates. 1 dates held as unsupported. Archive gaps: 0. Nothing is approved.
 
-12 dates have mechanically contained archive citations. Known quotation defects can still hold a date.
+13 dates have mechanically contained archive citations. Known quotation defects can still hold a date.
 
 Authorship and quotation accuracy remain unverified. Check each quotation against its citation, the complete reading, the local calendar, and recent reuse before approval.
 
 1202 archive records lack original sender identity. Do not attribute composition to the father without verified provenance.
 
-Archive SHA-256: c08674467f9033c9ffc673f04badb205f60dbc89d65fe91952feeeac71dd5a80
+Archive SHA-256: 87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3
 
 [Full metadata and payload hashes](draft-batch.json). Source numbers below are zero-based archive indices. All payloads preserve the archived wording and labels. JSON preserves every character and all whitespace.
 
@@ -125,15 +125,11 @@ Original label: All Souls Day. Words: 66.
 
 </details>
 
-## 2026-11-03. unsupported.
+## 2026-11-03. candidate.
 
 Luke 14:15-24. Saint Martin de Porres, Religious.
 
 [Reading source](https://cpbjr.github.io/catholic-readings-api/readings/2026/11-03.json). [Calendar source](https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-03.json).
-
-Hold: known-quote-citation-mismatch.
-
-- This record quotes the feeding of five thousand but cites Luke 14:19. Luke 14:19 describes an invited guest who bought oxen. Hold this record until an editor resolves the quotation and citation against the complete reading.
 
 ### Held archive record. Do not send.
 
@@ -143,6 +139,30 @@ Source #61. Archive date 2019-08-04. Citation LK(14:19).
 
 This record quotes the feeding of five thousand but cites Luke 14:19. Luke 14:19 describes an invited guest who bought oxen. Hold this record until an editor resolves the quotation and citation against the complete reading. [Evidence](https://bible.usccb.org/bible/luke/14).
 
+- Label review required. Proposed source #1044 uses "Today's". Compare with "Saint Martin de Porres, Religious".
+- Label review required. Alternative 1 source #109 uses "Today's". Compare with "Saint Martin de Porres, Religious".
+
+### Proposed exact archived message. Unapproved.
+
+Source #1044. Archive date 2025-11-03. Citation LK(14:23-24).
+
+Original label: Today's. Words: 61.
+
+<pre>Today's Gospel Msg (Parable of The Great Dinner)  Then the master said to the slave, " Go out into the roads and lanes, and compel people to come in, so that my house may be filled. For I tell you, none of those who were invited will taste my dinner." LK (14:23-24) Jesus is Lord, spread the living word of God.</pre>
+
+<details>
+<summary>Alternative archived messages. 1 available. Unapproved.</summary>
+
+### Alternative 1. Unapproved.
+
+Source #109. Archive date 2019-11-04. Citation Lk(14:23-24).
+
+Original label: Today's. Words: 63.
+
+<pre>Today's Gospel Msg ( Dine in the Kingdom of God) Jesus said, " The master then ordered the servant, 'Go out to the highways and country roads and make people come in that my home may be filled. For, I tell you, none of those men who were invited will taste my dinner.'" Lk(14:23-24) Jesus is Lord, spread the living word of God.</pre>
+
+</details>
+
 ## 2026-11-04. candidate.
 
 Luke 14:25-33. Saint Charles Borromeo, Bishop.
@@ -150,6 +170,8 @@ Luke 14:25-33. Saint Charles Borromeo, Bishop.
 [Reading source](https://cpbjr.github.io/catholic-readings-api/readings/2026/11-04.json). [Calendar source](https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-04.json).
 
 - Label review required. Proposed source #1045 uses "Today's". Compare with "Saint Charles Borromeo, Bishop".
+- Label review required. Alternative 1 source #988 uses "23rd Ordinary Sunday". Compare with "Saint Charles Borromeo, Bishop".
+- Label review required. Alternative 2 source #424 uses "Today's". Compare with "Saint Charles Borromeo, Bishop".
 
 ### Proposed exact archived message. Unapproved.
 
@@ -159,17 +181,49 @@ Original label: Today's. Words: 46.
 
 <pre>Today's Gospel Msg ( Cost of Discipleship) Jesus said, " Whoever comes to me and does not hate father and mother, wife and children, brothers and sisters, yes, and even life itself, cannot be my disciple." LK(14:26) Jesus is Lord, spread the living word of God.</pre>
 
+<details>
+<summary>Alternative archived messages. 2 available. Unapproved.</summary>
+
+### Alternative 1. Unapproved.
+
+Source #988. Archive date 2025-09-06. Citation Lk(14:33).
+
+Original label: 23rd Ordinary Sunday. Words: 40.
+
+<pre>23rd Ordinary Sunday Gospel Msg ( Cost of Discipleship) Jesus said, " In the same way, anyone of you who does not renounce all his possessions cannot be my disciple." Lk(14:33) Jesus is Lord, spread the living word of God.</pre>
+
+### Alternative 2. Unapproved.
+
+Source #424. Archive date 2021-11-02. Citation Lk(14:33).
+
+Original label: Today's. Words: 38.
+
+<pre>Today's Gospel Msg ( Cost of Discipleship) Jesus said, " In the same way, anyone of you who does not renounce all his possessions cannot be my disciple." Lk(14:33) Jesus is Lord, spread the living word of God.</pre>
+
+</details>
+
 ## 2026-11-05. candidate.
 
 Luke 15:1-10. Thursday of the 31st week of Ordinary Time.
 
 [Reading source](https://cpbjr.github.io/catholic-readings-api/readings/2026/11-05.json). [Calendar source](https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-05.json).
 
-- Label review required. Proposed source #924 uses "Solemnity of Sacred Heart of Jesus". Compare with "Thursday of the 31st week of Ordinary Time".
-- Label review required. Alternative 1 source #83 uses "Today's". Compare with "Thursday of the 31st week of Ordinary Time".
-- Label review required. Alternative 2 source #44 uses "Today's". Compare with "Thursday of the 31st week of Ordinary Time".
+- Label review required. Proposed source #1046 uses "Today's". Compare with "Thursday of the 31st week of Ordinary Time".
+- Label review required. Alternative 1 source #924 uses "Solemnity of Sacred Heart of Jesus". Compare with "Thursday of the 31st week of Ordinary Time".
+- Label review required. Alternative 2 source #110 uses "Today's". Compare with "Thursday of the 31st week of Ordinary Time".
 
 ### Proposed exact archived message. Unapproved.
+
+Source #1046. Archive date 2025-11-05. Citation Lk(15:10).
+
+Original label: Today's. Words: 44.
+
+<pre>Today's Gospel Msg ( Parable of the Lost Sheep and Coin) Jesus said, " Just so, I tell you, there is joy in the presence of angels of God over one sinner who repents." Lk(15:10) Jesus is Lord, spread the living word of God.</pre>
+
+<details>
+<summary>Alternative archived messages. 2 available. Unapproved.</summary>
+
+### Alternative 1. Unapproved.
 
 Source #924. Archive date 2025-06-26. Citation LK(15:7).
 
@@ -177,36 +231,31 @@ Original label: Solemnity of Sacred Heart of Jesus. Words: 55.
 
 <pre>Solemnity of Sacred Heart of Jesus ( Parable of the Lost Sheep) Jesus said, " Just so, I tell you, there will be more joy in heaven over one sinner who repents than over ninety-nine righteous person who need no repentance." LK(15:7) Divine love of God, flows through the Sacred Heart of Jesus. Happy Feast!!!</pre>
 
-<details>
-<summary>Alternative archived messages. 2 available. Unapproved.</summary>
-
-### Alternative 1. Unapproved.
-
-Source #83. Archive date 2019-09-14. Citation LK(15:7).
-
-Original label: Today's. Words: 48.
-
-<pre>Today's Gospel Msg ( Parable of the Lost Sheep) Jesus said, " Just so I tell you, there will be more joy in heaven over one sinner who repents than over ninety-nine righteous persons who need no repentance." LK(15:7) Jesus is Lord, spread the living word of God.</pre>
-
 ### Alternative 2. Unapproved.
 
-Source #44. Archive date 2019-06-27. Citation LK(15:7).
+Source #110. Archive date 2019-11-06. Citation Lk(15:10).
 
-Original label: Today's. Words: 53.
+Original label: Today's. Words: 46.
 
-<pre>Today's Gospel Msg ( Parable of the Lost Sheep ) Jesus said, "I tell you, in just the same way there will be more joy in heaven over one sinner who repents than over ninety-nine righteous people who have no need of repentance." LK(15:7) Jesus is Lord, spread the living word of God.</pre>
+<pre>Today's Gospel Msg ( Parable of the Lost Sheep and Coin) Jesus said, " In just the same way, I tell you, there will be rejoicing among the angels of God over one sinner who repents." Lk(15:10) Jesus is Lord, spread the living word of God.</pre>
 
 </details>
 
-## 2026-11-06. gap.
+## 2026-11-06. candidate.
 
 Luke 16:1-8. Friday of the 31st week of Ordinary Time.
 
 [Reading source](https://cpbjr.github.io/catholic-readings-api/readings/2026/11-06.json). [Calendar source](https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-06.json).
 
-Hold: no-fully-contained-archive-citation.
+- Label review required. Proposed source #1047 uses "Today's". Compare with "Friday of the 31st week of Ordinary Time".
 
-- Specific editorial review must supply or select a message. No generated or Bible fallback text is supplied.
+### Proposed exact archived message. Unapproved.
+
+Source #1047. Archive date 2025-11-06. Citation Lk(16:8).
+
+Original label: Today's. Words: 47.
+
+<pre>Today's Gospel Msg ( Dishonest Manager) And the master commended that dishonest steward for acting prudently. "For the children of this world are more prudent in dealing with their own generation than are the children of light." Lk(16:8) Jesus is Lord, spread the living word of God.</pre>
 
 ## 2026-11-07. candidate.
 

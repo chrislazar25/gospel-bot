@@ -6,7 +6,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { createHash } = require('node:crypto');
 const { parseApiRef, parseDadCitation, citationMatchesReading, parseReference, GOSPEL_VERSE_COUNTS } = require('../gospel_matcher');
-const { parseChat, collectMessages } = require('../parse_gospel');
+const { parseChat, collectMessages, extractFields } = require('../parse_gospel');
 const { batchDates, draftBatch, writeDraft, fetchSnapshot, formatPreview, main } = require('../scripts/draft-content');
 
 const root = path.resolve(__dirname, '..');
@@ -278,7 +278,7 @@ test('committed review packet replays exactly and every displayed payload matche
   assert.equal(preview.split(stored.sourceSnapshot.archiveSha256).length - 1, 1);
   assert.equal(preview.split('Authorship and quotation accuracy remain unverified.').length - 1, 1);
   assert.ok(preview.includes('[Full metadata and payload hashes](draft-batch.json)'));
-  assert.deepEqual(stored.summary, { mechanicalCandidateDates: 12, candidates: 11, gaps: 1, unsupported: 2 });
+  assert.deepEqual(stored.summary, { mechanicalCandidateDates: 13, candidates: 13, gaps: 0, unsupported: 1 });
   assert.equal(stored.days.length, 14);
   for (const day of stored.days) {
     assert.equal(day.approval, 'DRAFT_REQUIRES_REVIEW');
@@ -297,8 +297,16 @@ test('committed review packet replays exactly and every displayed payload matche
       assert.ok(payloadSection.includes(`<pre>${escapedPayload}</pre>`));
       assert.ok(payloadSection.includes(`Source #${candidate.archiveIndex}. Archive date ${candidate.archiveDate}. Citation ${candidate.citation}.`));
       for (const finding of candidate.editorialFindings) assert.ok(visible.includes(finding.finding));
-      if (day.proposed && !candidate.ranking.calendarLabelExact) assert.ok(visible.includes(`source #${candidate.archiveIndex} uses "${candidate.originalLabel || '(none)'}"`));
+      if (day.proposed && !day.heldCandidates.includes(candidate) && !candidate.ranking.calendarLabelExact) assert.ok(visible.includes(`source #${candidate.archiveIndex} uses "${candidate.originalLabel || '(none)'}"`));
       if (day.proposed === candidate) assert.equal(candidate.editorialFindings.length, 0);
     }
+  }
+});
+
+test('committed archive stores the fields the importer reads from each message', () => {
+  const archive = JSON.parse(fs.readFileSync(path.join(root, 'gospel_messages.json')));
+  for (const [index, record] of archive.messages.entries()) {
+    const fields = extractFields({ text: record.fullText, date: '30/10/26' });
+    assert.deepEqual([record.citation, record.verse, record.closing], [fields.citation, fields.verse, fields.closing], `source #${index}`);
   }
 });
