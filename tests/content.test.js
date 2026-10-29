@@ -237,16 +237,31 @@ test('committed review packet replays exactly and every displayed payload matche
   const archive = JSON.parse(bytes);
   const replayed = draftBatch({ startDate: stored.startDate, archiveBytes: bytes, archivePath: stored.sourceSnapshot.archivePath, snapshot: feed });
   assert.deepEqual(replayed, stored);
-  assert.equal(formatPreview(replayed), fs.readFileSync(path.join(directory, 'preview.md'), 'utf8'));
+  const preview = formatPreview(replayed);
+  assert.equal(preview, fs.readFileSync(path.join(directory, 'preview.md'), 'utf8'));
+  assert.equal(preview.split(stored.sourceSnapshot.archiveSha256).length - 1, 1);
+  assert.equal(preview.split('Authorship and quotation accuracy remain unverified.').length - 1, 1);
+  assert.ok(preview.includes('[Full metadata and payload hashes](draft-batch.json)'));
   assert.deepEqual(stored.summary, { mechanicalCandidateDates: 12, candidates: 11, gaps: 1, unsupported: 2 });
   assert.equal(stored.days.length, 14);
   for (const day of stored.days) {
     assert.equal(day.approval, 'DRAFT_REQUIRES_REVIEW');
+    const section = preview.split(`## ${day.date}. ${day.state}.`)[1].split('\n## ')[0];
+    const visible = section.split('<details>')[0];
+    assert.ok(visible.includes(day.gospel));
+    assert.ok(visible.includes(day.celebration));
+    if (!day.proposed) assert.ok(visible.includes(`Hold: ${day.reason}.`));
     for (const candidate of [day.proposed, ...day.alternatives, ...day.heldCandidates].filter(Boolean)) {
       assert.equal(candidate.payload, archive.messages[candidate.archiveIndex].fullText);
       assert.equal(candidate.payloadSha256, sha256(candidate.payload));
       assert.equal(candidate.sourceId, `${sha256(bytes)}:${candidate.archiveIndex}`);
       assert.equal(candidate.provenance.authorshipVerified, false);
+      const escapedPayload = candidate.payload.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const payloadSection = day.alternatives.includes(candidate) ? section.split('<details>')[1].split('</details>')[0] : visible;
+      assert.ok(payloadSection.includes(`<pre>${escapedPayload}</pre>`));
+      assert.ok(payloadSection.includes(`Source #${candidate.archiveIndex}. Archive date ${candidate.archiveDate}. Citation ${candidate.citation}.`));
+      for (const finding of candidate.editorialFindings) assert.ok(visible.includes(finding.finding));
+      if (day.proposed && !candidate.ranking.calendarLabelExact) assert.ok(visible.includes(`source #${candidate.archiveIndex} uses "${candidate.originalLabel || '(none)'}"`));
       if (day.proposed === candidate) assert.equal(candidate.editorialFindings.length, 0);
     }
   }

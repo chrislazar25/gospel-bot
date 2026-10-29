@@ -166,13 +166,22 @@ function draftBatch({ startDate, archiveBytes, archivePath, snapshot }) {
 }
 
 function formatPreview(batch) {
+  const commonHolds = new Set([
+    'Review every message in this batch. No message is approved.',
+    'Authorship and the exact Scripture quotation remain unverified.',
+    'Review the original dated or feast label. The exact archived payload is preserved without a label rewrite.',
+    'Check meaning in the complete reading, local Roman Catholic calendar, and recent reuse before approval.',
+    'Legacy sender provenance is unavailable. Do not attribute composition to the father.',
+  ]);
   const lines = [
     '# DRAFT. Requires review of every message.', '',
     `${batch.startDate} through ${batch.endDate}. Roman Catholic feed. Dates use Asia/Kolkata.`, '',
-    `${batch.summary.candidates} candidate dates. ${batch.summary.unsupported} dates held as unsupported. ${batch.summary.gaps} archive gaps. Nothing is approved.`, '',
+    `${batch.summary.candidates} candidate dates. ${batch.summary.unsupported} dates held as unsupported. Archive gaps: ${batch.summary.gaps}. Nothing is approved.`, '',
     `${batch.summary.mechanicalCandidateDates} dates have mechanically contained archive citations. Known quotation defects can still hold a date.`, '',
-    `${batch.sourceSnapshot.legacyRecordsWithoutSourceIdentity} archive records lack original sender identity. Authorship and quotation accuracy remain unverified. Candidate order is a mechanical shortlist, not a pastoral judgment.`, '',
+    'Authorship and quotation accuracy remain unverified. Check each quotation against its citation, the complete reading, the local calendar, and recent reuse before approval.', '',
+    `${batch.sourceSnapshot.legacyRecordsWithoutSourceIdentity} archive records lack original sender identity. Do not attribute composition to the father without verified provenance.`, '',
     `Archive SHA-256: ${batch.sourceSnapshot.archiveSha256}`, '',
+    '[Full metadata and payload hashes](draft-batch.json). Source numbers below are zero-based archive indices. All payloads preserve the archived wording and labels. JSON preserves every character and all whitespace.', '',
     batch.rankingPolicy, '',
   ];
   for (const day of batch.days) {
@@ -181,22 +190,27 @@ function formatPreview(batch) {
     if (day.calendarHold) lines.push(`Calendar hold: ${day.calendarHold}`, '');
     if (!day.proposed) lines.push(`Hold: ${day.reason}.`, '', ...day.holds.map(hold => `- ${hold}`), '');
     for (const held of day.heldCandidates) {
-      lines.push('### Held archive record. Do not send.', '', `Source ${held.sourceId}. Archive date ${held.archiveDate}. Citation ${held.citation}.`, '',
-        `Payload SHA-256: ${held.payloadSha256}`, '',
+      lines.push('### Held archive record. Do not send.', '', `Source #${held.archiveIndex}. Archive date ${held.archiveDate}. Citation ${held.citation}.`, '',
         '<pre>' + held.payload.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>', '',
-        ...held.editorialFindings.map(finding => `${finding.finding} [Evidence](${finding.evidenceUrl}).`), '');
+        ...held.editorialFindings.map(finding => `${finding.finding} [Evidence](${finding.evidenceUrl}).`),
+        ...held.holds.filter(hold => !commonHolds.has(hold) && !held.editorialFindings.some(finding => finding.finding === hold)).map(hold => `- ${hold}`), '');
     }
     if (!day.proposed) continue;
     for (const [index, candidate] of [day.proposed, ...day.alternatives].entries()) {
-      lines.push(index === 0 ? '### Proposed exact archived message. Unapproved.' : `### Alternative ${index}. Unapproved.`, '',
-        `Source ${candidate.sourceId}. Archive date ${candidate.archiveDate}. Citation ${candidate.citation}.`, '',
-        `Original label: ${candidate.originalLabel || '(none)'}. Words: ${candidate.wordCount}.`, '',
-        `Payload SHA-256: ${candidate.payloadSha256}`, '',
-        'Exact payload follows. JSON preserves the exact string and all whitespace.', '',
-        '<pre>' + candidate.payload.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>', '',
-        ...candidate.ranking.reasons.map(reason => `- ${reason}`), '',
-        ...candidate.holds.map(hold => `- ${hold}`), '');
+      const name = index === 0 ? 'Proposed' : `Alternative ${index}`;
+      if (!candidate.ranking.calendarLabelExact) lines.push(`- Label review required. ${name} source #${candidate.archiveIndex} uses "${candidate.originalLabel || '(none)'}". Compare with "${day.celebration || 'Calendar unavailable'}".`);
+      if (candidate.ranking.contextFields.length < 3) lines.push(`- ${name} source #${candidate.archiveIndex} has ${candidate.ranking.contextFields.length} of 3 context fields. Review completeness.`);
+      lines.push(...candidate.holds.filter(hold => !commonHolds.has(hold)).map(hold => `- ${name} source #${candidate.archiveIndex}. ${hold}`));
     }
+    lines.push('');
+    for (const [index, candidate] of [day.proposed, ...day.alternatives].entries()) {
+      if (index === 1) lines.push('<details>', `<summary>Alternative archived messages. ${day.alternatives.length} available. Unapproved.</summary>`, '');
+      lines.push(index === 0 ? '### Proposed exact archived message. Unapproved.' : `### Alternative ${index}. Unapproved.`, '',
+        `Source #${candidate.archiveIndex}. Archive date ${candidate.archiveDate}. Citation ${candidate.citation}.`, '',
+        `Original label: ${candidate.originalLabel || '(none)'}. Words: ${candidate.wordCount}.`, '',
+        '<pre>' + candidate.payload.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</pre>', '');
+    }
+    if (day.alternatives.length) lines.push('</details>', '');
   }
   return lines.join('\n') + '\n';
 }
