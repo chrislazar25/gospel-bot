@@ -1,0 +1,10 @@
+{
+  "2e0212005d0d127c220eae3d6abd2af92286cfc520b481e9ce2f371eec0cb0a3": [
+    {
+      "reason": "known-quote-citation-mismatch",
+      "finding": "This record quotes the feeding of five thousand but cites Luke 14:19. Luke 14:19 describes an invited guest who bought oxen. Hold this record until an editor resolves the quotation and citation against the complete reading.",
+      "evidenceUrl": "https://bible.usccb.org/bible/luke/14",
+      "reviewedOn": "2026-10-29"
+    }
+  ]
+}

@@ -1,47 +1,23 @@
-const fs = require('fs');
-const path = require('path');
+const { createHash } = require('node:crypto');
 
-// ─────────────────────────────────────────────
-// CONFIG
-// ─────────────────────────────────────────────
-const INPUT_FILE = '/mnt/user-data/uploads/_chat.txt';
-const OUTPUT_FILE = '/mnt/user-data/outputs/gospel_messages.json';
-const SENDER_NAME = 'Agnel Lazar';          // dad's name — NOT "Agnel Lazar 2"
+const sha256 = text => createHash('sha256').update(text).digest('hex');
 
-// ─────────────────────────────────────────────
-// STEP 1: Parse raw chat into messages
-// ─────────────────────────────────────────────
 function parseChat(text) {
-  const messages = [];
-  const lineRegex = /^\[(\d{2}\/\d{2}\/\d{2,4}),\s*([\d:]+\s*[AP]M)\]\s+(.+?):\s+([\s\S]*)$/;
-
-  const lines = text.split('\n');
-  let current = null;
-
-  for (const raw of lines) {
-    const line = raw.replace(/\r$/, '').replace(/\u200e/g, '').trim();
-    const match = line.match(/^\[(\d{2}\/\d{2}\/\d{2,4}),\s*([\d:]+\s*[AP]M)\]\s+(.+?):\s+([\s\S]*)$/);
-
-    if (match) {
-      if (current) messages.push(current);
-      current = {
-        date: match[1],
-        time: match[2],
-        sender: match[3].trim(),
-        text: match[4].trim(),
-      };
-    } else if (current && line.length > 0) {
-      // continuation of previous message
-      current.text += '\n' + line;
-    }
-  }
-  if (current) messages.push(current);
-  return messages;
+  if (typeof text !== 'string') throw new TypeError('Chat export must be UTF-8 text');
+  const sourceSha256 = sha256(text);
+  const header = /^[\u200e\ufeff]?\[(\d{2}\/\d{2}\/\d{2,4}),\s*([\d:]+\s*[AP]M)\]\s+(.+?): ?/gm;
+  const headers = [...text.matchAll(header)];
+  return headers.map((match, index) => {
+    const end = headers[index + 1]?.index ?? text.length;
+    const ordinal = index + 1;
+    return {
+      date: match[1], time: match[2], sender: match[3], timestamp: `${match[1]}, ${match[2]}`,
+      text: text.slice(match.index + match[0].length, end),
+      source: { sourceSha256, messageOrdinal: ordinal, id: `${sourceSha256}:${ordinal}`, rawMessage: text.slice(match.index, end) },
+    };
+  });
 }
 
-// ─────────────────────────────────────────────
-// STEP 2: Filter to dad's gospel messages only
-// ─────────────────────────────────────────────
 const SKIP_PATTERNS = [
   /you deleted this message/i,
   /‎?(image|video|audio|document|contact card|sticker|GIF) omitted/i,
@@ -76,9 +52,6 @@ function isGospelMessage(msg) {
   return GOSPEL_INDICATORS.some(p => p.test(t));
 }
 
-// ─────────────────────────────────────────────
-// STEP 3: Extract structured fields
-// ─────────────────────────────────────────────
 function extractFields(msg) {
   let text = msg.text
     .replace(/<This message was edited>/g, '')
@@ -132,6 +105,7 @@ function extractFields(msg) {
   const [d, m, y] = msg.date.split('/');
   const fullYear = y.length === 2 ? '20' + y : y;
   const isoDate = `${fullYear}-${m}-${d}`;
+  if (!Number.isFinite(Date.parse(isoDate)) || new Date(isoDate).toISOString().slice(0, 10) !== isoDate) throw new Error(`Invalid source date ${msg.date}`);
   const monthDay = `${m}-${d}`;  // for seasonal matching
 
   // Normalize liturgical label for keying
@@ -150,102 +124,73 @@ function extractFields(msg) {
     verse,
     citation,
     closing: closing.replace(/‎/g, '').trim(),
-    fullText: text.replace(/‎/g, '').trim(),
+    fullText: msg.text,
+    normalizedText: text,
+    originalText: msg.text,
+    sourceOccurrences: [{ ...msg.source, sender: msg.sender, timestamp: msg.timestamp, originalText: msg.text }],
+    provenance: { senderMatchedExactly: true, authorshipVerified: false, note: 'Posted by the exact configured sender. Original composition is not verified.' },
   };
 }
 
-// ─────────────────────────────────────────────
-// STEP 4: Deduplicate
-// ─────────────────────────────────────────────
+
 function deduplicate(entries) {
-  // By exact fullText → keep latest date
   const byText = new Map();
-  for (const e of entries) {
-    const existing = byText.get(e.fullText);
-    if (!existing || e.isoDate > existing.isoDate) {
-      byText.set(e.fullText, e);
+  for (const entry of entries) {
+    const previous = byText.get(entry.fullText);
+    if (!previous) byText.set(entry.fullText, { ...entry, sourceOccurrences: [...entry.sourceOccurrences] });
+    else {
+      const occurrences = [...previous.sourceOccurrences, ...entry.sourceOccurrences];
+      byText.set(entry.fullText, { ...(entry.isoDate > previous.isoDate ? entry : previous), sourceOccurrences: occurrences });
     }
   }
-  return Array.from(byText.values()).sort((a, b) => a.isoDate.localeCompare(b.isoDate));
+  return [...byText.values()].sort((a, b) => a.isoDate.localeCompare(b.isoDate));
 }
 
-// ─────────────────────────────────────────────
-// STEP 5: Build lookup indexes
-// ─────────────────────────────────────────────
 function buildIndexes(entries) {
-  // Index by MM-DD (month-day) → array of entries (multiple years)
-  const byMonthDay = {};
-  // Index by normalized label key → latest entry
-  const byLabelKey = {};
-
-  for (const e of entries) {
-    // Month-day index
-    if (!byMonthDay[e.monthDay]) byMonthDay[e.monthDay] = [];
-    byMonthDay[e.monthDay].push(e);
-
-    // Label key index — keep latest
-    if (!byLabelKey[e.labelKey] || e.isoDate > byLabelKey[e.labelKey].isoDate) {
-      byLabelKey[e.labelKey] = e;
-    }
+  const byMonthDay = Object.create(null);
+  const byLabelKey = Object.create(null);
+  for (const entry of entries) {
+    (byMonthDay[entry.monthDay] ||= []).push(entry);
+    if (!byLabelKey[entry.labelKey] || entry.isoDate > byLabelKey[entry.labelKey].isoDate) byLabelKey[entry.labelKey] = entry;
   }
-
   return { byMonthDay, byLabelKey };
 }
 
-// ─────────────────────────────────────────────
-// MAIN
-// ─────────────────────────────────────────────
-const raw = fs.readFileSync(INPUT_FILE, 'utf8');
-const allMessages = parseChat(raw);
-
-console.log(`Total messages parsed: ${allMessages.length}`);
-console.log(`From dad (${SENDER_NAME}): ${allMessages.filter(m => m.sender === SENDER_NAME).length}`);
-
-const gospelMessages = allMessages.filter(isGospelMessage);
-console.log(`Gospel messages identified: ${gospelMessages.length}`);
-
-const entries = gospelMessages.map(extractFields);
-const deduped = deduplicate(entries);
-console.log(`After deduplication: ${deduped.length} unique messages`);
-
-const { byMonthDay, byLabelKey } = buildIndexes(deduped);
-
-const output = {
-  meta: {
-    generatedAt: new Date().toISOString(),
-    totalMessages: deduped.length,
-    dateRange: {
-      from: deduped[0]?.isoDate,
-      to: deduped[deduped.length - 1]?.isoDate,
+function collectMessages(text, exactSender) {
+  if (typeof exactSender !== 'string' || !exactSender) throw new Error('An exact sender is required');
+  const all = parseChat(text);
+  if (!all.length) throw new Error('No supported chat message headers found');
+  const posted = all.filter(message => message.sender === exactSender);
+  const entries = posted.filter(isGospelMessage).map(extractFields);
+  const messages = deduplicate(entries);
+  return {
+    meta: {
+      schemaVersion: 2, sourceSha256: sha256(text), exactSender,
+      senderMeaning: 'Posted by this exact sender. Composition and quotation accuracy are not verified.',
+      parsedMessages: all.length, senderMessages: posted.length, gospelOccurrences: entries.length, totalMessages: messages.length,
     },
-    uniqueLabelKeys: Object.keys(byLabelKey).length,
-    uniqueMonthDays: Object.keys(byMonthDay).length,
-  },
-  messages: deduped,
-  byMonthDay,
-  byLabelKey,
-};
+    messages, ...buildIndexes(messages),
+  };
+}
 
-fs.mkdirSync('/mnt/user-data/outputs', { recursive: true });
-fs.writeFileSync(OUTPUT_FILE, JSON.stringify(output, null, 2), 'utf8');
-console.log(`\n✅ Written to: ${OUTPUT_FILE}`);
+function main(args) {
+  const options = {};
+  for (let i = 0; i < args.length; i += 2) {
+    if (!['--input', '--output', '--sender'].includes(args[i]) || !args[i + 1] || options[args[i]]) {
+      throw new Error('Usage: node parse_gospel.js --input chat.txt --output new-archive.json --sender "Exact sender"');
+    }
+    options[args[i]] = args[i + 1];
+  }
+  if (!options['--input'] || !options['--output'] || !options['--sender']) throw new Error('Explicit input, new output path, and exact sender are required');
+  const fs = require('node:fs');
+  const input = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(fs.readFileSync(options['--input']));
+  const output = collectMessages(input, options['--sender']);
+  fs.writeFileSync(options['--output'], JSON.stringify(output, null, 2) + '\n', { flag: 'wx' });
+  console.log(`Wrote ${output.messages.length} messages to ${options['--output']}. Authorship remains unverified.`);
+}
 
-// ─── Quick quality check ───
-console.log('\n=== SAMPLE ENTRIES ===');
-deduped.slice(0, 3).forEach(e => {
-  console.log(`\n[${e.isoDate}] ${e.liturgicalLabel}`);
-  console.log(`  Title: ${e.title}`);
-  console.log(`  Citation: ${e.citation}`);
-  console.log(`  Verse (first 80): ${e.verse.slice(0, 80)}...`);
-  console.log(`  Closing: ${e.closing.slice(0, 60)}`);
-});
-
-console.log('\n=== LABEL KEY SAMPLES ===');
-Object.keys(byLabelKey).slice(0, 10).forEach(k => {
-  console.log(`  "${k}" → ${byLabelKey[k].isoDate}`);
-});
-
-console.log('\n=== MONTH-DAY COVERAGE SAMPLE ===');
-Object.entries(byMonthDay).slice(0, 5).forEach(([md, entries]) => {
-  console.log(`  ${md}: ${entries.length} message(s) across years`);
-});
+module.exports = { parseChat, isGospelMessage, extractFields, deduplicate, buildIndexes, collectMessages, main };
+if (require.main === module) {
+  try { main(process.argv.slice(2)); }
+  catch (error) { console.error(error.message); process.exitCode = 1; }
+}
