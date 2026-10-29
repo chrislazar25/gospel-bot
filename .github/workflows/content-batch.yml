@@ -10,6 +10,7 @@ permissions:
   pull-requests: write
   issues: write
   actions: write
+  checks: read
 
 concurrency:
   group: content-batch
@@ -30,8 +31,16 @@ jobs:
       - name: Draft the next batch unless one is open
         id: batch
         run: |
-          if [[ "$(gh pr list --label content-batch --state open --json number --jq length)" != 0 ]]; then
-            echo 'A batch PR is already open.'
+          open=$(gh pr list --label content-batch --state open --json headRefName,headRefOid --jq '.[0] // empty')
+          if [[ -n "$open" ]]; then
+            branch=$(jq -r .headRefName <<<"$open")
+            runs=$(gh api "repos/$GITHUB_REPOSITORY/commits/$(jq -r .headRefOid <<<"$open")/check-runs" --jq '[.check_runs[] | select(.name == "Delivery lab")] | length')
+            if [[ "$runs" == 0 ]]; then
+              echo "Batch PR on $branch has no CI run. Starting CI."
+              gh workflow run ci.yml --ref "$branch"
+            else
+              echo "Batch PR on $branch is already open."
+            fi
             exit 0
           fi
           node scripts/open-batch.js --body-file "$RUNNER_TEMP/batch.md" > "$RUNNER_TEMP/batch.json"
@@ -45,12 +54,16 @@ jobs:
           OWNER: ${{ github.repository_owner }}
         run: |
           branch="content/${START}_${END}"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "::error::$branch already exists, probably from a closed batch PR. Reopen that PR, or delete the branch to draft it again."
+            exit 1
+          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git switch -c "$branch"
           git add content/messages
           git commit -m "content: propose Gospel messages for $START to $END"
-          git push --force origin "$branch"
+          git push origin "$branch"
           gh label create content-batch --force --color 0E8A16 --description 'Daily Gospel message batch for review'
           gh pr create --base master --head "$branch" --label content-batch --reviewer "$OWNER" \
             --title "content: Gospel messages for $START to $END" --body-file "$RUNNER_TEMP/batch.md"
