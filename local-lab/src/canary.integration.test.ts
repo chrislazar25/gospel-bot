@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { createPool } from './db.js';
 import { migrate } from './migrate.js';
-import { CANARY_CONFIRMATION, CANARY_DATE, CANARY_HASH, CANARY_PAYLOAD, canaryConfigSchema, runCanary } from './canary.js';
+import { CANARY_CONFIRMATION, CANARY_HASH, CANARY_PAYLOAD, canaryConfigSchema, runCanary } from './canary.js';
 
 test('canary uses the real ledger and status role with the actual Green API wire protocol', async t => {
   const admin = createPool(z.literal('postgres://runtime:runtime@db:5432/runtime').parse(process.env.TEST_DATABASE_URL));
@@ -17,7 +17,7 @@ test('canary uses the real ledger and status role with the actual Green API wire
   await owner.query('GRANT USAGE ON SCHEMA public TO gospel_runtime,gospel_status');
   await migrate(owner);
   const config = canaryConfigSchema.parse({
-    APP_ENV: 'staging', CANARY_CONFIRMATION, CANARY_TARGET_CHAT_ID: '15555550123@c.us',
+    APP_ENV: 'staging', CANARY_CONFIRMATION, CANARY_TARGET_CHAT_ID: '15555550123@c.us', CANARY_ATTEMPT: '1',
     RELEASE_SHA: 'a'.repeat(40), CANARY_EXPECTED_REVISION: 'a'.repeat(40),
     DATABASE_URL: 'postgres://gospel_runtime:local-test-only@db:5432/canary', STATUS_DATABASE_URL: 'postgres://gospel_status:local-test-only@db:5432/canary',
     GREEN_API_URL: 'https://7107.api.greenapi.com', GREEN_API_ID: '1234', GREEN_API_TOKEN: 'test-token',
@@ -57,8 +57,8 @@ test('canary uses the real ledger and status role with the actual Green API wire
   const pools: string[] = [];
   const execute = () => runCanary(config, { request, pool: url => { pools.push(new URL(url).username); return createPool(url); }, receiptChecks: 2, pause: async () => {} });
   async function reset() { await owner.query('TRUNCATE deliveries,delivery_evidence'); mode = 'delivered'; sends = 0; receipts = 0; pools.length = 0; }
-  async function seed(status: string, payload = CANARY_PAYLOAD, hash = CANARY_HASH) {
-    await owner.query("INSERT INTO deliveries(id,channel,target,date,payload,payload_hash,status,attempts,provider_id) VALUES($1,'green-api',$2,$3,$4,$5,$6,$7,$8)", [randomUUID(), config.CANARY_TARGET_CHAT_ID, CANARY_DATE, payload, hash, status, status === 'pending' ? 0 : 1, ['accepted', 'confirmed', 'failed'].includes(status) ? 'CANARY-PRIVATE-ONE' : null]);
+  async function seed(status: string, payload = CANARY_PAYLOAD, hash = CANARY_HASH, providerId = 'CANARY-PRIVATE-ONE') {
+    await owner.query("INSERT INTO deliveries(id,channel,target,date,payload,payload_hash,status,attempts,provider_id) VALUES($1,'green-api',$2,$3,$4,$5,$6,$7,$8)", [randomUUID(), config.CANARY_TARGET_CHAT_ID, '1970-01-01', payload, hash, status, status === 'pending' ? 0 : 1, ['accepted', 'confirmed', 'failed'].includes(status) ? providerId : null]);
   }
   try {
     await t.test('concurrent invocations send once, confirm by receipt and prove loopback HTTP using only runtime and status roles', async () => {
@@ -70,7 +70,7 @@ test('canary uses the real ledger and status role with the actual Green API wire
       assert.equal(result.statusHttp, 'loopback-verified');
       assert.equal(new Set(results.map(value => value.deliveryId)).size, 1);
       assert.equal(sends, 1);
-      assert.equal((await owner.query('SELECT date,attempts FROM deliveries')).rows[0]?.date, CANARY_DATE);
+      assert.equal((await owner.query('SELECT date,attempts FROM deliveries')).rows[0]?.date, '1970-01-01');
       assert.deepEqual(new Set(pools), new Set(['gospel_runtime', 'gospel_status']));
       const readonly = createPool(config.STATUS_DATABASE_URL);
       try { await assert.rejects(readonly.query('DELETE FROM deliveries'), /permission denied/); } finally { await readonly.end(); }
@@ -84,6 +84,15 @@ test('canary uses the real ledger and status role with the actual Green API wire
         assert.equal(result.priorConfirmation, true); assert.equal(sends, 1);
         assert.equal((await owner.query('SELECT count(*)::int AS count FROM deliveries')).rows[0]?.count, 1);
       } finally { t.mock.timers.reset(); }
+    });
+    await t.test('a new attempt number sends once more and keeps the earlier attempt', async () => {
+      await reset(); await seed('accepted', CANARY_PAYLOAD, CANARY_HASH, 'CANARY-EARLIER');
+      const result = await runCanary(canaryConfigSchema.parse({ ...config, CANARY_ATTEMPT: '2' }), { request, pool: url => createPool(url), receiptChecks: 1 });
+      assert.equal(result.event, 'canary_verified'); assert.equal(result.priorConfirmation, false); assert.equal(sends, 1);
+      assert.deepEqual((await owner.query('SELECT date,status,provider_id FROM deliveries ORDER BY date')).rows, [
+        { date: '1970-01-01', status: 'accepted', provider_id: 'CANARY-EARLIER' },
+        { date: '1970-01-02', status: 'confirmed', provider_id: 'CANARY-PRIVATE-ONE' },
+      ]);
     });
     for (const status of ['unknown', 'failed', 'confirmed']) await t.test(`existing ${status} is retained without any provider submission`, async () => {
       await reset(); await seed(status);

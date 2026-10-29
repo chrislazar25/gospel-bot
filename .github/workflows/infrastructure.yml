@@ -128,6 +128,7 @@ jobs:
       TF_VAR_image: ${{ vars.CANARY_IMAGE }}
       TF_VAR_revision: ${{ vars.CANARY_REVISION }}
       TF_VAR_target_chat_id: ${{ vars.CANARY_TARGET_CHAT_ID }}
+      TF_VAR_attempt: ${{ vars.CANARY_ATTEMPT }}
       TF_VAR_green_api_url: ${{ vars.GREEN_API_URL }}
       TF_VAR_green_api_id: ${{ vars.GREEN_API_ID }}
       TF_VAR_secret_versions: ${{ vars.SECRET_VERSIONS_JSON }}

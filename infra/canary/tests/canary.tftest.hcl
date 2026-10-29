@@ -4,6 +4,7 @@ variables {
   image           = "us-central1-docker.pkg.dev/test-project/gospel/canary@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   revision        = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   target_chat_id  = "15555550123@c.us"
+  attempt         = 1
   green_api_url   = "https://7107.api.greenapi.com"
   green_api_id    = "1234"
   secret_versions = { database = "1", status-database = "1", migration-database = "1", green-token = "1" }
@@ -116,4 +117,14 @@ run "reject_non_numeric_instance" {
   command = plan
   variables { green_api_id = "instance-token" }
   expect_failures = [var.green_api_id]
+}
+run "reject_fractional_attempt" {
+  command = plan
+  variables { attempt = 1.5 }
+  expect_failures = [var.attempt]
+}
+run "reject_zero_attempt" {
+  command = plan
+  variables { attempt = 0 }
+  expect_failures = [var.attempt]
 }
