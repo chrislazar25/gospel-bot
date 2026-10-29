@@ -25,6 +25,13 @@ function nextStartDate(published, today) {
   return last && last >= today ? addDays(last, 1) : addDays(today, 1);
 }
 
+function missingUpcomingDates(published, today) {
+  const upcoming = published.filter(date => date >= today);
+  const missing = [];
+  for (let date = upcoming[0]; date && date < upcoming.at(-1); date = addDays(date, 1)) if (!upcoming.includes(date)) missing.push(date);
+  return missing;
+}
+
 function headingNote(candidate, day) {
   const label = candidate.originalLabel;
   if (!label || /^today'?s$/i.test(label) || candidate.ranking.calendarLabelExact) return null;
@@ -69,6 +76,7 @@ async function openBatch({ root = REPOSITORY, today = istToday(new Date()), snap
   if (!startDate) return { due: false };
   const readings = snapshot ? validateSnapshot(snapshot, batchDates(startDate)) : await fetchSnapshot(startDate, fetchImpl);
   const batch = draftBatch({ startDate, archiveBytes: fs.readFileSync(path.join(root, 'gospel_messages.json')), archivePath: 'gospel_messages.json', snapshot: readings });
+  if (!batch.days.some(day => day.proposed)) throw new Error(`No archive message for ${batch.startDate} to ${batch.endDate}. Add those messages in a content PR by hand.`);
   for (const day of batch.days) {
     if (day.proposed) fs.writeFileSync(path.join(messagesDirectory, `${day.date}.txt`), day.proposed.payload, { flag: 'wx' });
   }
@@ -93,5 +101,5 @@ async function main(args) {
   console.log(JSON.stringify(summary));
 }
 
-module.exports = { nextStartDate, formatBatchBody, openBatch };
+module.exports = { nextStartDate, missingUpcomingDates, formatBatchBody, openBatch };
 if (require.main === module) main(process.argv.slice(2)).catch(error => { console.error(error.message); process.exitCode = 1; });

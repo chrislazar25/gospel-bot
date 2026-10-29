@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
   actions: write
 
 concurrency:
@@ -50,6 +51,7 @@ jobs:
           git add content/messages
           git commit -m "content: propose Gospel messages for $START to $END"
           git push --force origin "$branch"
+          gh label create content-batch --force --color 0E8A16 --description 'Daily Gospel message batch for review'
           gh pr create --base master --head "$branch" --label content-batch --reviewer "$OWNER" \
             --title "content: Gospel messages for $START to $END" --body-file "$RUNNER_TEMP/batch.md"
           gh workflow run ci.yml --ref "$branch"
