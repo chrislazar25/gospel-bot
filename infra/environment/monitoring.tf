@@ -2,6 +2,12 @@ resource "google_monitoring_notification_channel" "email" {
   display_name = "${local.prefix} operator"
   type         = "email"
   labels       = { email_address = var.notification_email }
+  lifecycle {
+    precondition {
+      condition     = var.notification_email != null
+      error_message = "Monitoring notification channel requires notification_email."
+    }
+  }
 }
 resource "google_logging_metric" "event" {
   for_each = toset(["delivery_check", "delivery_problem", "content_warning"])

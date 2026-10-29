@@ -15,37 +15,62 @@ variable "environment" {
   }
 }
 variable "image" {
-  type = string
+  default = null
+  type    = string
   validation {
-    condition     = can(regex("@sha256:[a-f0-9]{64}$", var.image))
+    condition     = var.image == null ? true : can(regex("@sha256:[a-f0-9]{64}$", var.image))
     error_message = "Use an immutable Artifact Registry image digest."
   }
 }
 variable "green_api_url" {
-  type = string
+  default = null
+  type    = string
   validation {
-    condition     = can(regex("^https://[a-zA-Z0-9-]+\\.api\\.green-api\\.com$", var.green_api_url))
+    condition     = var.green_api_url == null ? true : can(regex("^https://[a-zA-Z0-9-]+\\.api\\.green-api\\.com$", var.green_api_url))
     error_message = "Use the instance assigned HTTPS api.green-api.com host."
   }
 }
-variable "green_api_id" { type = string }
-variable "target_chat_id" { type = string }
-variable "notification_email" { type = string }
+variable "green_api_id" {
+  type    = string
+  default = null
+  validation {
+    condition     = var.green_api_id == null ? true : length(trimspace(var.green_api_id)) > 0
+    error_message = "Provide a nonempty green_api_id."
+  }
+}
+variable "target_chat_id" {
+  type    = string
+  default = null
+  validation {
+    condition     = var.target_chat_id == null ? true : length(trimspace(var.target_chat_id)) > 0
+    error_message = "Provide a nonempty target_chat_id."
+  }
+}
+variable "notification_email" {
+  type    = string
+  default = null
+  validation {
+    condition     = var.notification_email == null ? true : length(trimspace(var.notification_email)) > 0
+    error_message = "Provide a nonempty notification_email."
+  }
+}
 variable "monitoring_enabled" {
   type    = bool
   default = false
 }
 variable "secret_versions" {
-  type = map(string)
+  default = null
+  type    = map(string)
   validation {
-    condition     = length(var.secret_versions) == 4 && alltrue([for name in ["database", "migration-database", "status-database", "green-token"] : can(regex("^[1-9][0-9]*$", var.secret_versions[name]))])
+    condition     = var.secret_versions == null ? true : length(var.secret_versions) == 4 && alltrue([for name in ["database", "migration-database", "status-database", "green-token"] : can(regex("^[1-9][0-9]*$", var.secret_versions[name]))])
     error_message = "Pin numeric versions for database, migration-database, status-database, and green-token."
   }
 }
 variable "status_invokers" {
-  type = set(string)
+  default = null
+  type    = set(string)
   validation {
-    condition     = alltrue([for member in var.status_invokers : can(regex("^(user|group|serviceAccount):.+$", member))])
+    condition     = var.status_invokers == null ? true : alltrue([for member in var.status_invokers : can(regex("^(user|group|serviceAccount):.+$", member))])
     error_message = "Status invokers must be named users, groups, or service accounts. Public access is forbidden."
   }
 }
@@ -140,7 +165,7 @@ resource "google_cloud_run_v2_job" "job" {
           value_source {
             secret_key_ref {
               secret  = google_secret_manager_secret.secret[each.value.database].secret_id
-              version = var.secret_versions[each.value.database]
+              version = try(var.secret_versions[each.value.database], null)
             }
           }
         }
@@ -151,7 +176,7 @@ resource "google_cloud_run_v2_job" "job" {
             value_source {
               secret_key_ref {
                 secret  = google_secret_manager_secret.secret["green-token"].secret_id
-                version = var.secret_versions["green-token"]
+                version = try(var.secret_versions["green-token"], null)
               }
             }
           }
@@ -159,7 +184,17 @@ resource "google_cloud_run_v2_job" "job" {
       }
     }
   }
-  lifecycle { ignore_changes = [template[0].template[0].containers[0].image] }
+  lifecycle {
+    ignore_changes = [template[0].template[0].containers[0].image]
+    precondition {
+      condition     = var.image != null && var.target_chat_id != null && var.secret_versions != null
+      error_message = "Application jobs require image, target_chat_id, and pinned secret_versions."
+    }
+    precondition {
+      condition     = !each.value.green || (var.green_api_url != null && var.green_api_id != null)
+      error_message = "Sending jobs require green_api_url and green_api_id."
+    }
+  }
   depends_on = [google_secret_manager_secret_iam_member.runtime]
 }
 resource "google_cloud_run_v2_job_iam_member" "release" {
@@ -206,17 +241,23 @@ resource "google_cloud_run_v2_service" "status" {
         value_source {
           secret_key_ref {
             secret  = google_secret_manager_secret.secret["status-database"].secret_id
-            version = var.secret_versions["status-database"]
+            version = try(var.secret_versions["status-database"], null)
           }
         }
       }
     }
   }
-  lifecycle { ignore_changes = [template[0].containers[0].image] }
+  lifecycle {
+    ignore_changes = [template[0].containers[0].image]
+    precondition {
+      condition     = var.image != null && var.target_chat_id != null && var.secret_versions != null && var.status_invokers != null
+      error_message = "Status service requires image, target_chat_id, pinned secret_versions, and status_invokers."
+    }
+  }
   depends_on = [google_secret_manager_secret_iam_member.runtime]
 }
 resource "google_cloud_run_v2_service_iam_member" "viewer" {
-  for_each = setunion(var.status_invokers, [local.release])
+  for_each = setunion(var.status_invokers == null ? toset([]) : var.status_invokers, [local.release])
   name     = google_cloud_run_v2_service.status.name
   location = var.region
   role     = "roles/run.invoker"
