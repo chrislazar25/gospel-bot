@@ -95,7 +95,7 @@ test('import reads citations written in mixed case or with spaces', () => {
     ['Lk(14:33)', 'Lk(14:33)', 'Luke 14:25-33'],
     ['LK (14:23-24)', 'LK(14:23-24)', 'Luke 14:15-24'],
     ['MT (17: 25-26)', 'MT(17: 25-26)', 'Matthew 17:22-27'],
-    ['(Matthew 22:37-39)', 'Matthew(22:37-39)', 'Matthew 22:34-40'],
+    ['(Matthew 22:37-39).', 'Matthew(22:37-39)', 'Matthew 22:34-40'],
     ['(LK13:12-13)', 'LK(13:12-13)', 'Luke 13:10-17'],
     ['MK14:24-25', 'MK(14:24-25)', 'Mark 14:12-26'],
   ]) {
