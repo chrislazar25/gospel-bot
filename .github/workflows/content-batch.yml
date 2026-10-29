@@ -1,0 +1,55 @@
+name: Content batch
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: content-batch
+  cancel-in-progress: false
+
+jobs:
+  open:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Draft the next batch unless one is open
+        id: batch
+        run: |
+          if [[ "$(gh pr list --label content-batch --state open --json number --jq length)" != 0 ]]; then
+            echo 'A batch PR is already open.'
+            exit 0
+          fi
+          node scripts/open-batch.js --body-file "$RUNNER_TEMP/batch.md" > "$RUNNER_TEMP/batch.json"
+          cat "$RUNNER_TEMP/batch.json"
+          jq -r '"due=\(.due)", "start=\(.startDate)", "end=\(.endDate)"' "$RUNNER_TEMP/batch.json" >> "$GITHUB_OUTPUT"
+      - name: Open the batch PR and run CI on it
+        if: steps.batch.outputs.due == 'true'
+        env:
+          START: ${{ steps.batch.outputs.start }}
+          END: ${{ steps.batch.outputs.end }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          branch="content/${START}_${END}"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$branch"
+          git add content/messages
+          git commit -m "content: propose Gospel messages for $START to $END"
+          git push --force origin "$branch"
+          gh pr create --base master --head "$branch" --label content-batch --reviewer "$OWNER" \
+            --title "content: Gospel messages for $START to $END" --body-file "$RUNNER_TEMP/batch.md"
+          gh workflow run ci.yml --ref "$branch"
