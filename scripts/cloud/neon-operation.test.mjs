@@ -400,7 +400,7 @@ test('real CLI defaults to metadata inspection with no GCP config or provision c
 
 test('Neon workflow keeps inspection free of GCP authentication and pins both commands', async () => {
   const workflow = await readFile(new URL('../../.github/workflows/neon.yml', import.meta.url), 'utf8');
-  const inspect = workflow.split('  inspect:\n')[1].split('  provision-existing:\n')[0];
+  const inspect = workflow.split('  inspect:\n')[1].split('  prepare-staging:\n')[0];
   const provision = workflow.split('  provision-existing:\n')[1];
   assert.ok(workflow.includes('default: inspect') && workflow.includes('group: cloud-${{ inputs.environment }}'));
   for (const job of [inspect, provision]) {

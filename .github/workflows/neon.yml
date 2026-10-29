@@ -8,7 +8,7 @@ on:
         required: true
       operation:
         type: choice
-        options: [inspect, provision-existing]
+        options: [inspect, prepare-staging, provision-existing]
         default: inspect
         required: true
 permissions:
@@ -39,6 +39,30 @@ jobs:
           NEON_ORG_ID: ${{ vars.NEON_ORG_ID }}
           NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
           NEON_BRANCH_ID: ${{ vars.NEON_BRANCH_ID }}
+          NEON_DATABASE_NAME: ${{ vars.NEON_DATABASE_NAME }}
+  prepare-staging:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/master' && inputs.environment == 'staging' && inputs.operation == 'prepare-staging'
+    environment: staging
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: local-lab/package-lock.json
+      - run: npm ci
+        working-directory: local-lab
+      - run: node scripts/cloud/neon.mjs prepare-staging
+        env:
+          APP_ENV: staging
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_ORG_ID: ${{ vars.NEON_ORG_ID }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          NEON_PARENT_BRANCH_ID: ${{ vars.NEON_PARENT_BRANCH_ID }}
           NEON_DATABASE_NAME: ${{ vars.NEON_DATABASE_NAME }}
   provision-existing:
     if: github.ref == 'refs/heads/master' && inputs.operation == 'provision-existing'

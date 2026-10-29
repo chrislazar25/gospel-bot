@@ -10,6 +10,7 @@ const name = z.string().min(1).max(63).regex(/^[^\x00-\x1f\x7f]+$/);
 const label = z.string().min(1).max(256).regex(/^[^\x00-\x1f\x7f]+$/);
 const host = z.string().max(253).regex(/^ep-[a-z0-9-]+(?:\.[a-z0-9-]+)+\.neon\.tech$/).refine(value => !value.includes('-pooler.'));
 const selectionSchema = z.object({ organizationId: id, projectId: id, branchId: id, databaseName: name });
+const preparationSchema = z.object({ organizationId: id, projectId: id, parentBranchId: id, databaseName: name, branchName: z.literal('gospel-staging') });
 const managed = [
   { secret: 'database', role: 'gospel_runtime', readOnly: false },
   { secret: 'status-database', role: 'gospel_status', readOnly: true },
@@ -19,7 +20,7 @@ const appColumns = {
   delivery_evidence: 'delivery_id:uuid attempt:int4 fact:text recorded_at:timestamptz',
   schema_migrations: 'version:int4 checksum:text applied_at:timestamptz',
 };
-const codes = new Set(['invalid_config', 'invalid_operation', 'workflow_required', 'invalid_metadata', 'target_mismatch', 'invalid_endpoint', 'reserved_owner', 'invalid_credential', 'neon_request_failed', 'secret_store_failed', 'database_failed', 'database_target_mismatch', 'schema_conflict', 'role_collision', 'operation_failed']);
+const codes = new Set(['invalid_config', 'invalid_operation', 'workflow_required', 'invalid_metadata', 'target_mismatch', 'invalid_endpoint', 'reserved_owner', 'invalid_credential', 'neon_request_failed', 'secret_store_failed', 'database_failed', 'database_target_mismatch', 'schema_conflict', 'role_collision', 'operation_failed', 'branch_conflict', 'incomplete_pagination', 'branch_not_ready']);
 class OperationError extends Error {}
 const fail = code => { throw new OperationError(code); };
 export function safeError(error) {
@@ -34,20 +35,26 @@ const parse = (schema, value, code) => {
 
 export function parseConfig(env, argv = []) {
   const operation = argv[0] ?? 'inspect';
-  if (argv.length > 1 || !['inspect', 'provision-existing'].includes(operation)) fail('invalid_operation');
-  if (operation === 'provision-existing') {
+  if (argv.length > 1 || !['inspect', 'prepare-staging', 'provision-existing'].includes(operation)) fail('invalid_operation');
+  if (operation !== 'inspect') {
     const context = parse(z.object({
       GITHUB_ACTIONS: z.literal('true'), GITHUB_EVENT_NAME: z.literal('workflow_dispatch'),
-      GITHUB_REF: z.literal('refs/heads/master'), GITHUB_JOB: z.literal('provision-existing'),
+      GITHUB_REF: z.literal('refs/heads/master'), GITHUB_JOB: z.literal(operation),
       GITHUB_REPOSITORY: z.string().max(201).regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/), GITHUB_WORKFLOW_REF: z.string(),
     }), env, 'workflow_required');
     if (context.GITHUB_WORKFLOW_REF !== `${context.GITHUB_REPOSITORY}/.github/workflows/neon.yml@refs/heads/master`) fail('workflow_required');
+  }
+  if (operation === 'prepare-staging' && env.APP_ENV !== 'staging') fail('workflow_required');
+  const apiKey = parse(z.string().min(1).regex(/^[^\r\n]+$/), env.NEON_API_KEY, 'invalid_config');
+  if (operation === 'prepare-staging') {
+    const preparation = parse(preparationSchema, { organizationId: env.NEON_ORG_ID, projectId: env.NEON_PROJECT_ID,
+      parentBranchId: env.NEON_PARENT_BRANCH_ID, databaseName: env.NEON_DATABASE_NAME, branchName: 'gospel-staging' }, 'invalid_config');
+    return { operation, preparation, apiKey };
   }
   const selection = parse(selectionSchema, {
     organizationId: env.NEON_ORG_ID, projectId: env.NEON_PROJECT_ID,
     branchId: env.NEON_BRANCH_ID, databaseName: env.NEON_DATABASE_NAME,
   }, 'invalid_config');
-  const apiKey = parse(z.string().min(1).regex(/^[^\r\n]+$/), env.NEON_API_KEY, 'invalid_config');
   if (operation === 'inspect') return { operation, selection, apiKey };
   const { GCP_PROJECT_ID, APP_ENV } = parse(z.object({
     GCP_PROJECT_ID: z.string().regex(/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/), APP_ENV: z.enum(['staging', 'production']),
@@ -56,17 +63,18 @@ export function parseConfig(env, argv = []) {
 }
 
 export function createNeonApi(apiKey, fetchImpl = fetch) {
-  const get = async path => {
+  const request = async (path, method = 'GET', body) => {
     try {
       const response = await fetchImpl(`https://console.neon.tech/api/v2/${path}`, {
-        method: 'GET', headers: { Authorization: `Bearer ${apiKey}` },
+        method, headers: { Authorization: `Bearer ${apiKey}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+        ...(body ? { body: JSON.stringify(body) } : {}),
         redirect: 'error', signal: AbortSignal.timeout(30000),
       });
       if (!response.ok) {
         if (Number.isInteger(response.status) && response.status >= 100 && response.status <= 599) fail(`neon_http_${response.status}`);
         fail('neon_request_failed');
       }
-      return await response.json();
+      if (method === 'GET') return await response.json();
     } catch (error) {
       if (error instanceof OperationError) throw error;
       fail('neon_request_failed');
@@ -75,12 +83,22 @@ export function createNeonApi(apiKey, fetchImpl = fetch) {
   return {
     metadata(path) {
       if (!/^projects\/[a-zA-Z0-9_-]+(?:\/branches\/[a-zA-Z0-9_-]+(?:\/databases\/[^/?#]+|\/endpoints)?)?$/.test(path)) fail('invalid_metadata');
-      return get(path);
+      return request(path);
+    },
+    listBranches(projectId, cursor) {
+      const params = new URLSearchParams({ search: 'gospel-staging', limit: '100' });
+      if (cursor !== undefined) params.set('cursor', cursor);
+      return request(`projects/${projectId}/branches?${params}`);
+    },
+    createBranch(preparation) {
+      return request(`projects/${preparation.projectId}/branches`, 'POST', {
+        branch: { name: preparation.branchName, parent_id: preparation.parentBranchId }, endpoints: [{ type: 'read_write' }],
+      });
     },
     connectionUri(target) {
       const params = new URLSearchParams({ branch_id: target.branchId, endpoint_id: target.readWriteEndpoint.id,
         database_name: target.databaseName, role_name: target.owner, pooled: 'false' });
-      return get(`projects/${target.projectId}/connection_uri?${params}`);
+      return request(`projects/${target.projectId}/connection_uri?${params}`);
     },
   };
 }
@@ -106,6 +124,67 @@ export async function inspectTarget(selection, metadata) {
       branchName: branch.name, protected: branch.protected, owner: database.owner_name,
       readWriteEndpoint: Object.freeze({ id: writable[0].id, host: writable[0].host }) });
   } catch (error) { throw safeError(error); }
+}
+
+// BranchPreparation fixes ancestry independently of the selected application branch.
+export async function prepareStaging(preparation, neon, pause = ms => new Promise(resolve => setTimeout(resolve, ms))) {
+  const request = parse(preparationSchema, preparation, 'invalid_config');
+  const parent = await inspectTarget({ ...request, branchId: request.parentBranchId }, neon.metadata);
+  if (parent.branchName === request.branchName) fail('branch_conflict');
+  const branchSchema = z.object({ id, project_id: id, name: label, parent_id: id.nullable() });
+  const list = async () => {
+    const matches = [];
+    const cursors = new Set();
+    let cursor;
+    for (let page = 0; page < 10; page++) {
+      const result = parse(z.object({ branches: z.array(branchSchema), pagination: z.object({
+        next: z.string().min(1).max(1024).regex(/^[^\x00-\x1f\x7f]+$/).nullish(),
+      }) }), await neon.listBranches(request.projectId, cursor), 'incomplete_pagination');
+      if (result.branches.some(branch => branch.project_id !== request.projectId)) fail('target_mismatch');
+      matches.push(...result.branches.filter(branch => branch.name === request.branchName));
+      if (matches.length > 1) fail('branch_conflict');
+      if (!result.pagination.next) return matches[0];
+      cursor = result.pagination.next;
+      if (cursors.has(cursor)) fail('incomplete_pagination');
+      cursors.add(cursor);
+    }
+    fail('incomplete_pagination');
+  };
+  let child = await list();
+  let created = false;
+  if (!child) {
+    // A POST outcome can be ambiguous. Its credential-bearing response is never parsed or retried.
+    try { await neon.createBranch(request); created = true; } catch {}
+    for (let attempt = 0; attempt < 5; attempt++) {
+      child = await list();
+      if (child) break;
+      if (attempt < 4) await pause(1000);
+    }
+    if (!child) fail('branch_not_ready');
+  }
+  const verifyBranch = branch => {
+    if (branch.id === request.parentBranchId || branch.project_id !== request.projectId
+      || branch.name !== request.branchName || branch.parent_id !== request.parentBranchId) fail('branch_conflict');
+  };
+  verifyBranch(child);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const target = await inspectTarget({ ...request, branchId: child.id }, async path => {
+        const result = await neon.metadata(path);
+        if (path === `projects/${request.projectId}/branches/${child.id}`) {
+          verifyBranch(parse(z.object({ branch: branchSchema }), result, 'invalid_metadata').branch);
+        }
+        return result;
+      });
+      if (target.owner !== parent.owner) fail('target_mismatch');
+      return { ...target, parentBranchId: request.parentBranchId, created };
+    } catch (error) {
+      const code = safeError(error).message;
+      if (!['invalid_endpoint', 'neon_http_404', 'neon_http_409', 'neon_http_423', 'neon_http_503'].includes(code)) throw error;
+      if (attempt === 4) fail('branch_not_ready');
+      await pause(1000);
+    }
+  }
 }
 
 export function validateCredential(value, target, role) {
@@ -144,10 +223,11 @@ async function preflight(client, target, stored) {
   if (managed.some(entry => !stored[entry.secret] && roles.some(role => role.rolname === entry.role))) fail('role_collision');
 }
 
-export async function runNeon({ operation = 'inspect', selection }, { neon, provisioning }) {
+export async function runNeon({ operation = 'inspect', selection, preparation }, { neon, provisioning, pause }) {
   let client;
   try {
-    if (!['inspect', 'provision-existing'].includes(operation)) fail('invalid_operation');
+    if (!['inspect', 'prepare-staging', 'provision-existing'].includes(operation)) fail('invalid_operation');
+    if (operation === 'prepare-staging') return { operation, ...await prepareStaging(preparation, neon, pause) };
     const target = await inspectTarget(selection, neon.metadata);
     if (operation === 'inspect') return { operation, ...target };
     const { secrets, connect, password = () => randomBytes(32).toString('base64url') } = await provisioning();

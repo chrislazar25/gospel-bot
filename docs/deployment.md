@@ -42,6 +42,7 @@ Add these variables to each GitHub environment. Use the same GCP project, WIF pr
 | `NEON_ORG_ID` | Neon organization ID |
 | `NEON_PROJECT_ID` | Existing Neon project ID |
 | `NEON_BRANCH_ID` | Exact existing branch ID, not its display name |
+| `NEON_PARENT_BRANCH_ID` | Staging only: original production branch ID used to prepare the isolated child |
 | `NEON_DATABASE_NAME` | Existing database name, such as `neondb` |
 | `GREEN_API_URL` | Instance-assigned `https://HOST.api.green-api.com` URL |
 | `GREEN_API_ID` | Instance ID |
@@ -59,6 +60,12 @@ Add `NEON_API_KEY` as an environment secret. Do not add database passwords, conn
 Run **Neon databases** on `master` with operation `inspect` first. Inspection is the default. It needs only the Neon key and the four Neon variables. It reads project, branch, database, and endpoint metadata, then reports identifiers, names, region, actual database owner, and the enabled read/write endpoint. Check the report against the intended environment. Inspection does not request connection credentials, authenticate to GCP, connect to Postgres, or change resources. A mismatched organization or branch, missing database, or ambiguous endpoint stops the run.
 
 For local inspection, install dependencies with `npm ci --prefix local-lab` and supply the same five Neon environment values through your secret manager. Run `node scripts/cloud/neon.mjs` or append `inspect`. Never paste the key or a connection URL into a command or logs.
+
+To reserve the original branch for production, set staging `NEON_PARENT_BRANCH_ID` to its ID. Run **Neon databases** on `master` with environment `staging` and operation `prepare-staging`. The workflow creates `gospel-staging` from that exact parent with a read/write endpoint, or reuses a matching child. It verifies the child database and owner before reporting metadata. It requests no connection credentials and does not provision roles or change the parent. A failed or timed-out creation is reconciled through metadata reads; a rerun does not blindly create another branch.
+
+Set staging `NEON_BRANCH_ID` to the verified child ID from the report, then run staging `inspect` again. Keep `NEON_PARENT_BRANCH_ID` fixed to the original production branch. The preparation workflow cannot update GitHub variables. Create this child before provisioning managed roles on the parent.
+
+You can now run **Infrastructure** with operation `secrets`, followed by **Neon databases** with `provision-existing`, before building the application image or configuring Green API. The secret containers and database roles are independent of message delivery. Complete the application settings below before a full deployment.
 
 ## Build the initial image and create secrets
 
