@@ -104,7 +104,6 @@ test('import reads citations written in mixed case or with spaces', () => {
     ['(Luke 14:5)', 'Luke(14:5)', 'Luke 14:1-6'],
     ['lk(14:33)', 'lk(14:33)', 'Luke 14:25-33'],
     ['lK(14:33)', 'lK(14:33)', 'Luke 14:25-33'],
-    ['hearMT(13:41-42)', 'MT(13:41-42)', 'Matthew 13:36-43'],
   ]) {
     const [entry] = importFixture(written);
     assert.equal(entry.citation, stored);

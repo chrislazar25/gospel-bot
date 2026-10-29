@@ -54,9 +54,10 @@ function isGospelMessage(msg) {
 
 // Archive citations appear as MT(1:2), Lk(14:33), LK (14:23-24), hearMT(13:41-42),
 // or without book brackets as (Matthew 22:37-39), (LK13:12-13), MK14:24-25.
+const VERSES = String.raw`\d+\s*:\s*\d+[a-z]?(?:\s*[,;-]\s*(?:\d+\s*:\s*)?\d+[a-z]?)*`;
 const CITATION_PATTERNS = [
-  /(?<![A-Z])(?<book>[1-3]?[A-Z][A-Za-z]{0,6})\s*\((?<verses>\d[^)]*)\)/,
-  /(?<![A-Za-z])\(?(?<book>Matthew|Mark|Luke|John|M[Tt]|M[Kk]|L[Kk]|J[HhNn])\s*(?<verses>\d+\s*:\s*\d[\d\s,;:-]*\d)\s*\)?\.?/,
+  /(?<book>(?<![A-Za-z])[1-3]?(?:[A-Z]{1,3}|[A-Za-z][a-z]{0,6}|[a-z][A-Z])|(?<=[a-z])[A-Z]{2,3})\s*\((?<verses>\d+(?:\s*[:-][^)]*)?)\)/,
+  new RegExp(String.raw`(?<![A-Za-z])\(?(?<book>Matthew|Mark|Luke|John|MT|MK|LK|JH|JN)\s*(?<verses>${VERSES})\s*\)?\.?`, 'i'),
 ];
 
 function extractFields(msg) {
