@@ -104,11 +104,19 @@ In GCP Monitoring, open the `gospel-ENV delivery` dashboard. Its log panel shows
 
 Read the authenticated status endpoint using an authorized account. The release itself checks `/health`; an IAM failure returns an HTTP error. There is no custom status UI. Use Cloud Run logs, execution history, the private JSON endpoint, and GCP Monitoring.
 
-The configured send window is 07:00 to 08:00 IST, with a 07:30 IST delivery deadline. Check and reconciliation run every ten minutes. All three schedules remain paused. Alerts can identify a stopped check only after it has emitted evidence at least once. Content coverage appears in structured `delivery_check.contentDaysRemaining` logs, and overdue or failed delivery appears as `delivery_problem` with `ERROR` severity.
+The send schedule fires at 00:30 IST. The send window is 00:30 to 01:30 IST, with a 01:00 IST delivery deadline. Check and reconciliation run every ten minutes. All three schedules stay paused until activation. Alerts can identify a stopped check only after it has emitted evidence at least once. Content coverage appears in structured `delivery_check.contentDaysRemaining` logs, and overdue or failed delivery appears as `delivery_problem` with `ERROR` severity.
 
-## Keep delivery disabled until activation is reviewed
+## Switch delivery on
 
-Activation is a separate task. It requires approved live content, an authorized chat, a verified provider instance, the first send date, a reviewed delivery window, and an explicit live canary decision. This repository provides no activation workflow. Keep both environments disabled while there is only one provider instance and chat unless their live use has been explicitly authorized.
+Activation requires a successful release in that environment, approved content for the first send date, and a `TARGET_CHAT_ID` group that should receive the messages. Stop every other sender to that group first. The new database cannot see an old sender.
+
+1. Set the environment variable `FIRST_SEND_DATE` to the first IST date to send, such as `2026-10-31`.
+2. Run **Infrastructure** with operation `plan`, then `apply`. The plan should show `SENDING_ENABLED=true` and `FIRST_SEND_DATE` on every job and the status service, and all three schedules unpaused.
+3. Execute the send job once before the first send date. It should log `sending_held` and send nothing.
+
+To switch delivery off, delete `FIRST_SEND_DATE` and apply again. Every schedule pauses and every job gets `SENDING_ENABLED=false`.
+
+A release refuses to run while schedules are active, and it deploys with `SENDING_ENABLED=false`. To release new content, switch delivery off, release, then switch it back on with the same `FIRST_SEND_DATE`. Do this outside 00:30 to 01:30 IST.
 
 ## Validate changes locally
 
