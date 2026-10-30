@@ -90,9 +90,9 @@ provider "google" {
 locals {
   prefix = "gospel-${var.environment}"
   jobs = {
-    send      = { database = "database", green = true, cron = "30 0 * * *" }
-    reconcile = { database = "database", green = true, cron = "*/10 * * * *" }
-    check     = { database = "status-database", green = false, cron = "*/10 * * * *" }
+    send      = { database = "database", green = true, cron = "30,45 0 * * *" }
+    reconcile = { database = "database", green = true, cron = "*/10 0-1 * * *" }
+    check     = { database = "status-database", green = false, cron = "5 * * * *" }
     migrate   = { database = "migration-database", green = false, cron = "" }
   }
   secrets    = toset(["database", "migration-database", "status-database", "green-token"])
