@@ -1,7 +1,5 @@
 # Run the local delivery lab
 
-Open [the whiteboard](WHITEBOARD.html) in your browser to see the components and failure behavior.
-
 Start the lab from this directory with Docker Desktop running.
 
 ```sh
@@ -43,7 +41,3 @@ The checks cover competing replicas, rejection and retry, accepted requests with
 Unknown attempts stay held across retries and restarts. A lost response can leave a message unknown even if the fake provider's log shows acceptance. The application cannot use that administrative log to invent provider correlation. A crash after claiming but before sending can leave a day unsent.
 
 This is a local simulation contract. Real Green API integration, editorial Git approval, AI ops, GCP deployment, and production cutover are separate milestones.
-
-## Check the diagram
-
-On macOS with Google Chrome installed, run `node local-lab/verify-whiteboard.mjs` from the repository root. It checks desktop and mobile layouts, every scenario button, and JavaScript errors. Screenshots and results stay in `local-lab/evidence/`.
