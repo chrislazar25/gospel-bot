@@ -288,7 +288,7 @@ test('quotation hold survives collecting exports with changed whitespace and exa
 });
 
 test('committed review packet replays exactly and every displayed payload matches its archive source', () => {
-  const directory = path.join(root, 'drafts/2026-10-30_2026-11-12');
+  const directory = path.join(root, 'tests/fixtures/review-packet');
   const stored = JSON.parse(fs.readFileSync(path.join(directory, 'draft-batch.json')));
   const feed = JSON.parse(fs.readFileSync(path.join(directory, 'readings-snapshot.json')));
   const bytes = fs.readFileSync(path.join(root, stored.sourceSnapshot.archivePath));

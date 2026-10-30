@@ -1,9 +1,0 @@
-{
-  "image": "gospel-cloud-smoke:review-fix",
-  "signal": "SIGTERM",
-  "exitCode": 1,
-  "stderr": "{\"severity\":\"ERROR\",\"event\":\"cloud_smoke_failed\",\"runId\":\"aea27f24-80dc-4542-a5ca-bac64b9b8b6c\",\"message\":\"The operation was aborted\"}\n",
-  "filesystemChanges": "C /home\nC /home/node\nA /home/node/.cache\nA /home/node/.cache/rosetta\n",
-  "temporaryDatabaseAndKeysRemoved": true,
-  "result": "PASS"
-}
