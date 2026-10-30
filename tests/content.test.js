@@ -8,7 +8,7 @@ const { createHash } = require('node:crypto');
 const { parseApiRef, parseDadCitation, citationMatchesReading, parseReference, GOSPEL_VERSE_COUNTS } = require('../gospel_matcher');
 const { parseChat, collectMessages, extractFields } = require('../parse_gospel');
 const { batchDates, draftBatch, writeDraft, fetchSnapshot, formatPreview, main } = require('../scripts/draft-content');
-const { nextStartDate, openBatch, missingUpcomingDates } = require('../scripts/open-batch');
+const { nextStartDate, openBatch, missingUpcomingDates, formatBatchBody } = require('../scripts/open-batch');
 
 const root = path.resolve(__dirname, '..');
 const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -386,4 +386,25 @@ test('a batch with no proposed message fails and names its dates', async t => {
   for (const day of feed.days) day.readings.readings.gospel = 'Mark 1:1-8';
   await assert.rejects(openBatch({ root: directory, today: '2026-10-29', snapshot: feed }), /No archive message for 2026-10-30 to 2026-11-12/);
   assert.deepEqual(fs.readdirSync(path.join(directory, 'content/messages')), []);
+});
+
+test('US Thanksgiving keeps the weekday Gospel', () => {
+  const archive = Buffer.from(JSON.stringify({ messages: [
+    { ...message, citation: 'LK(17:17-19)', fullText: 'Thanksgiving fixture. LK(17:17-19).' },
+    { ...message, citation: 'LK(21:26-28)', fullText: 'Week 34 fixture. LK(21:26-28).' },
+    { ...message, citation: 'LK(19:42)', fullText: 'Week 33 fixture. LK(19:42).' },
+  ] }));
+  const proposals = start => {
+    const feed = snapshot(start);
+    for (const row of feed.days) row.readings.readings.gospel = 'Luke 17:11-19';
+    const batch = draftBatch({ startDate: start, archiveBytes: archive, archivePath: 'fixture.json', snapshot: feed });
+    return { batch, byDate: Object.fromEntries(batch.days.map(day => [day.date, day.proposed?.payload])) };
+  };
+  const { batch, byDate } = proposals('2026-11-20');
+  assert.equal(byDate['2026-11-26'], 'Week 34 fixture. LK(21:26-28).');
+  assert.equal(byDate['2026-11-27'], 'Thanksgiving fixture. LK(17:17-19).');
+  assert.match(formatBatchBody(batch), /## Thu 26 Nov\. Luke 21:20-28\n\n.*The feed gives the US Thanksgiving Gospel, Luke 17:11-19\./);
+  assert.match(formatPreview(batch), /Luke 21:20-28\..*\n\n.*The feed gives the US Thanksgiving Gospel, Luke 17:11-19\./);
+  assert.equal(proposals('2023-11-20').byDate['2023-11-23'], 'Week 33 fixture. LK(19:42).');
+  assert.equal(proposals('2027-11-20').byDate['2027-11-25'], 'Week 34 fixture. LK(21:26-28).');
 });
