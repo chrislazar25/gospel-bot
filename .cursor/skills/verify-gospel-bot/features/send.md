@@ -8,7 +8,7 @@
 
 ## How to get to it (user POV)
 
-POST an empty JSON object to `/send-todays-message` on either assigned app URL. The configured target and synthetic content determine the payload. The request cannot choose arbitrary text, date, or destination.
+POST an empty JSON object to `/send-todays-message` on either assigned app URL. This route exists only in the lab. Production sends through the `send` job in [the runtime](runtime.md). The lab's fixed target sets the destination, and the dated synthetic file sets the payload. The request cannot choose arbitrary text, date, or destination.
 
 ## Driving it with verify.mjs
 
@@ -16,4 +16,4 @@ Launch a fresh isolated stack, then run `node local-lab/verify.mjs drive`. The h
 
 ## Gotchas
 
-The frozen fixtures are synthetic test content, not Dad-approved messages. Approval automation and calendar coverage are separate work. Each run must use an empty disposable database. Never reset a developer's existing database to make a journey pass.
+The frozen fixtures are synthetic test content, not Dad-approved messages. Each run must use an empty disposable database. Never reset a developer's existing database to make a journey pass.
