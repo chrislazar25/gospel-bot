@@ -26,7 +26,7 @@ resource "google_monitoring_alert_policy" "problem" {
   notification_channels = [google_monitoring_notification_channel.email.name]
   conditions {
     display_name = "Delivery check reports a problem"
-    condition_matched_log { filter = "resource.type=\"cloud_run_job\" AND resource.labels.job_name=\"${local.prefix}-check\" AND (jsonPayload.event=\"delivery_problem\" OR jsonPayload.event=\"content_warning\")" }
+    condition_matched_log { filter = "resource.type=\"cloud_run_job\" AND resource.labels.job_name=(\"${local.prefix}-check\" OR \"${local.prefix}-send\" OR \"${local.prefix}-reconcile\") AND (jsonPayload.event=\"delivery_problem\" OR jsonPayload.event=\"content_warning\")" }
   }
   alert_strategy {
     notification_rate_limit { period = "3600s" }
@@ -39,10 +39,10 @@ resource "google_monitoring_alert_policy" "missing_check" {
   combiner              = "OR"
   notification_channels = [google_monitoring_notification_channel.email.name]
   conditions {
-    display_name = "No delivery_check in 30 minutes"
+    display_name = "No delivery_check in 2 hours"
     condition_absent {
       filter   = "metric.type=\"logging.googleapis.com/user/${google_logging_metric.event["delivery_check"].name}\" AND resource.type=\"cloud_run_job\""
-      duration = "1800s"
+      duration = "7200s"
       aggregations {
         alignment_period     = "300s"
         per_series_aligner   = "ALIGN_SUM"
