@@ -71,7 +71,7 @@ variable "first_send_date" {
   type        = string
   default     = ""
   validation {
-    condition     = var.first_send_date == "" || can(regex("^20[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$", var.first_send_date))
+    condition     = var.first_send_date == "" || try(formatdate("YYYY-MM-DD", "${var.first_send_date}T00:00:00Z") == var.first_send_date, false)
     error_message = "Use an empty first_send_date or a YYYY-MM-DD date."
   }
 }

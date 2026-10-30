@@ -103,6 +103,21 @@ run "malformed_first_send_date_is_rejected" {
   expect_failures = [var.first_send_date]
 }
 
+run "impossible_first_send_date_is_rejected" {
+  command = plan
+  variables {
+    image              = "us-central1-docker.pkg.dev/test-project/gospel/runtime@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    green_api_url      = "https://instance.api.green-api.com"
+    green_api_id       = "synthetic-instance"
+    target_chat_id     = "synthetic-chat"
+    notification_email = "operator@example.invalid"
+    secret_versions    = { database = "2", migration-database = "3", status-database = "4", green-token = "5" }
+    status_invokers    = ["user:operator@example.invalid"]
+    first_send_date    = "2026-02-31"
+  }
+  expect_failures = [var.first_send_date]
+}
+
 run "malformed_application_is_rejected" {
   command = plan
   variables {
