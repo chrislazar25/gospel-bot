@@ -66,6 +66,15 @@ variable "secret_versions" {
     error_message = "Pin numeric versions for database, migration-database, status-database, and green-token."
   }
 }
+variable "first_send_date" {
+  description = "First IST date this environment sends. Empty keeps sending disabled and every schedule paused."
+  type        = string
+  default     = ""
+  validation {
+    condition     = var.first_send_date == "" || can(regex("^20[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$", var.first_send_date))
+    error_message = "Use an empty first_send_date or a YYYY-MM-DD date."
+  }
+}
 variable "status_invokers" {
   default = null
   type    = set(string)
@@ -81,13 +90,14 @@ provider "google" {
 locals {
   prefix = "gospel-${var.environment}"
   jobs = {
-    send      = { database = "database", green = true, cron = "0 7 * * *" }
+    send      = { database = "database", green = true, cron = "30 0 * * *" }
     reconcile = { database = "database", green = true, cron = "*/10 * * * *" }
     check     = { database = "status-database", green = false, cron = "*/10 * * * *" }
     migrate   = { database = "migration-database", green = false, cron = "" }
   }
   secrets    = toset(["database", "migration-database", "status-database", "green-token"])
-  common_env = { APP_ENV = var.environment, CONTENT_DIR = "/app/content", SENDING_ENABLED = "false", TARGET_CHAT_ID = var.target_chat_id, SEND_WINDOW_START_MINUTE = "420", SEND_WINDOW_END_MINUTE = "480", DELIVERY_DEADLINE_MINUTE = "450" }
+  sending    = var.first_send_date != ""
+  common_env = merge({ APP_ENV = var.environment, CONTENT_DIR = "/app/content", SENDING_ENABLED = tostring(local.sending), TARGET_CHAT_ID = var.target_chat_id, SEND_WINDOW_START_MINUTE = "30", SEND_WINDOW_END_MINUTE = "90", DELIVERY_DEADLINE_MINUTE = "60" }, local.sending ? { FIRST_SEND_DATE = var.first_send_date } : {})
   green_env  = { GREEN_API_URL = var.green_api_url, GREEN_API_ID = var.green_api_id }
   release    = "serviceAccount:gospel-release-${var.environment}@${var.project_id}.iam.gserviceaccount.com"
   neon       = "serviceAccount:gospel-neon-${var.environment}@${var.project_id}.iam.gserviceaccount.com"
@@ -282,7 +292,7 @@ resource "google_cloud_scheduler_job" "job" {
   region           = var.region
   schedule         = each.value.cron
   time_zone        = "Asia/Kolkata"
-  paused           = true
+  paused           = !local.sending
   attempt_deadline = "60s"
   retry_config { retry_count = 0 }
   http_target {

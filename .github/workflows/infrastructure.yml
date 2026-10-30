@@ -57,6 +57,7 @@ jobs:
       TF_VAR_secret_versions: ${{ vars.SECRET_VERSIONS_JSON }}
       TF_VAR_notification_email: ${{ vars.NOTIFICATION_EMAIL }}
       TF_VAR_status_invokers: ${{ vars.STATUS_INVOKERS_JSON }}
+      TF_VAR_first_send_date: ${{ vars.FIRST_SEND_DATE }}
       TF_VAR_region: ${{ vars.GCP_REGION || 'us-central1' }}
       STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
       OPERATION: ${{ inputs.operation }}
@@ -74,7 +75,7 @@ jobs:
           options=()
           if [[ "$OPERATION" == secrets ]]; then
             unset TF_VAR_image TF_VAR_green_api_url TF_VAR_green_api_id TF_VAR_target_chat_id
-            unset TF_VAR_monitoring_enabled TF_VAR_secret_versions TF_VAR_notification_email TF_VAR_status_invokers
+            unset TF_VAR_monitoring_enabled TF_VAR_secret_versions TF_VAR_notification_email TF_VAR_status_invokers TF_VAR_first_send_date
             options=(-target=google_secret_manager_secret.secret -target=google_secret_manager_secret_iam_member.neon_write -target=google_secret_manager_secret_iam_member.neon_read)
           fi
           terraform -chdir=infra/environment plan "${options[@]}" -out=deployment.plan
