@@ -49,7 +49,7 @@ test('canary uses the real ledger and status role with the actual Green API wire
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   const address = server.address(); assert.ok(address && typeof address !== 'string');
   const request: typeof fetch = (input, init) => {
-    if (mode === 'before-http') throw new Error('injected crash before provider HTTP');
+    if (mode === 'before-http' && String(input).includes('/sendMessage/')) throw new Error('injected crash before provider HTTP');
     const upstream = new URL(String(input));
     assert.equal(upstream.origin, config.GREEN_API_URL);
     return fetch(`http://127.0.0.1:${address.port}${upstream.pathname}`, init);

@@ -5,6 +5,7 @@ import { createDeliveryService, DeliveryError, type Provider } from './delivery.
 
 const fakeUrl = z.literal('http://fake:3000').parse(process.env.FAKE_URL);
 const provider: Provider = {
+  ready: async () => true,
   async send(delivery) {
     const response = await fetch(`${fakeUrl}/send`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ target: delivery.target, payload: delivery.payload }), signal: AbortSignal.timeout(1500) });
     const data: unknown = await response.json();

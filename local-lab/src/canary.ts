@@ -63,7 +63,7 @@ export async function runCanary(config: CanaryConfig, options: { request?: typeo
     const previous = existing.rows[0] ? deliverySchema.parse(existing.rows[0]) : undefined;
     if (previous) assertPayload(previous, config);
     const service = createDeliveryService({ db, channel: 'green-api', target: config.CANARY_TARGET_CHAT_ID, now: async () => new Date(date + 'T00:00:00Z'), message: async () => CANARY_PAYLOAD, policy: { kind: 'lab' }, revision: config.RELEASE_SHA,
-      provider: { send: async row => { assertPayload(row, config); return provider.send(row); }, receipt: row => { assertPayload(row, config); return provider.receipt(row); } } });
+      provider: { ready: () => provider.ready(), send: async row => { assertPayload(row, config); return provider.send(row); }, receipt: row => { assertPayload(row, config); return provider.receipt(row); } } });
     let row = await service.sendToday();
     assertPayload(row, config);
     for (let attempt = 0; row.status === 'accepted' && attempt < (options.receiptChecks ?? 12); attempt++) {

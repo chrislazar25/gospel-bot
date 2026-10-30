@@ -22,10 +22,13 @@ export function createGreenApi(config: z.infer<typeof greenConfigSchema>, reques
     return response.json();
   }
   return {
+    async ready() {
+      try {
+        return z.object({ stateInstance: z.literal('authorized') }).safeParse(await call('getStateInstance')).success;
+      } catch { return false; }
+    },
     async send(delivery) {
       try {
-        const state = z.object({ stateInstance: z.literal('authorized') }).safeParse(await call('getStateInstance'));
-        if (!state.success) return { kind: 'unknown' };
         const accepted = acceptedSchema.parse(await call('sendMessage', { chatId: delivery.target, message: delivery.payload }));
         return { kind: 'accepted', providerId: accepted.idMessage };
       } catch { return { kind: 'unknown' }; }
