@@ -52,16 +52,18 @@ jobs:
       TF_VAR_image: ${{ vars.INITIAL_IMAGE }}
       TF_VAR_green_api_url: ${{ vars.GREEN_API_URL }}
       TF_VAR_green_api_id: ${{ vars.GREEN_API_ID }}
-      TF_VAR_target_chat_id: ${{ vars.TARGET_CHAT_ID }}
+      TF_VAR_target_chat_id: ${{ secrets.TARGET_CHAT_ID }}
       TF_VAR_monitoring_enabled: ${{ vars.MONITORING_ENABLED || 'false' }}
       TF_VAR_secret_versions: ${{ vars.SECRET_VERSIONS_JSON }}
-      TF_VAR_notification_email: ${{ vars.NOTIFICATION_EMAIL }}
-      TF_VAR_status_invokers: ${{ vars.STATUS_INVOKERS_JSON }}
+      TF_VAR_notification_email: ${{ secrets.NOTIFICATION_EMAIL }}
+      TF_VAR_status_invokers: ${{ secrets.STATUS_INVOKERS_JSON }}
       TF_VAR_first_send_date: ${{ vars.FIRST_SEND_DATE }}
       TF_VAR_region: ${{ vars.GCP_REGION || 'us-central1' }}
       STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
       OPERATION: ${{ inputs.operation }}
     steps:
+      - name: Mask each status invoker
+        run: jq -r '.[] | (., sub("^[^:]+:"; "")) | "::add-mask::\(.)"' <<<"${TF_VAR_status_invokers:-[]}"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
         with:
@@ -128,7 +130,7 @@ jobs:
       TF_VAR_region: ${{ vars.GCP_REGION || 'us-central1' }}
       TF_VAR_image: ${{ vars.CANARY_IMAGE }}
       TF_VAR_revision: ${{ vars.CANARY_REVISION }}
-      TF_VAR_target_chat_id: ${{ vars.CANARY_TARGET_CHAT_ID }}
+      TF_VAR_target_chat_id: ${{ secrets.CANARY_TARGET_CHAT_ID }}
       TF_VAR_attempt: ${{ vars.CANARY_ATTEMPT }}
       TF_VAR_green_api_url: ${{ vars.GREEN_API_URL }}
       TF_VAR_green_api_id: ${{ vars.GREEN_API_ID }}
