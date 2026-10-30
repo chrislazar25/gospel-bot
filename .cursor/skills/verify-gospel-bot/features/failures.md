@@ -2,7 +2,7 @@
 
 ## Sub-features
 
-- Retry after explicit proof of rejection.
+- Retry after explicit proof of rejection. This path exists only in the lab, because the production schema forbids `unknown` returning to `pending`.
 - Hold after a generic server error or an accepted request whose response is lost.
 - Preserve the daily claim and evidence through application and database restarts.
 
@@ -17,3 +17,5 @@ Run `node local-lab/verify.mjs drive` on a fresh stack. Require proven rejection
 ## Gotchas
 
 Timeouts and missing history are ambiguous. Holding may leave a day unsent if the app crashes after the claim but before HTTP. Automatic failover cannot safely resolve that gap without stronger provider guarantees. This lab does not prove real Green API behavior.
+
+The lab schema does not enforce the production transitions. [The runtime suite](runtime.md) proves them. The drive does not assert `delivery_evidence` rows after a restart or inject a crash between the claim and HTTP. The runtime suite covers missing receipts.

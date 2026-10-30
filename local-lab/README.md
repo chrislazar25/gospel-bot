@@ -28,7 +28,7 @@ From the repository root, use host Node 22 or newer.
 node local-lab/verify.mjs all
 ```
 
-This creates a separate stack with random ports and an empty disposable volume. It exercises the real API against Postgres and the fake provider, keeps reports in `local-lab/evidence/`, and removes its own stack. It does not reset your developer stack. For the staged launch, doctor, drive, and cleanup workflow, use [verify-gospel-lab](../.cursor/skills/verify-gospel-lab/SKILL.md).
+This creates a separate stack with random ports and an empty disposable volume. It exercises the real API against Postgres and the fake provider, keeps reports in `local-lab/evidence/`, and removes its own stack. It does not reset your developer stack. For the staged launch, doctor, drive, and cleanup workflow, use [verify-gospel-bot](../.cursor/skills/verify-gospel-bot/SKILL.md).
 
 Run `node local-lab/verify-lifecycle.mjs` to check that a second launch preserves an unfinished run and repeated cleanup preserves its evidence.
 
