@@ -50,7 +50,8 @@ function formatBatchBody(batch) {
   ];
   if (headings.length) lines.push('**Check the heading.**', '', ...headings.map(note => `- ${note}`), '');
   for (const day of batch.days) {
-    lines.push(`## ${dayName(day.date)}. ${day.gospel}`, '', `${day.celebration || 'Not in the calendar feed'}. [Reading](${day.readingsUrl}).`, '');
+    const feedNote = day.feedGospel ? ` The feed gives the US Thanksgiving Gospel, ${day.feedGospel}. India keeps the weekday Gospel.` : '';
+    lines.push(`## ${dayName(day.date)}. ${day.gospel}`, '', `${day.celebration || 'Not in the calendar feed'}. [Reading](${day.readingsUrl}).${feedNote}`, '');
     for (const held of day.heldCandidates) {
       lines.push(`Held, do not send. Source #${held.archiveIndex}. ${held.editorialFindings.map(finding => finding.finding).join(' ')}`, '');
     }
