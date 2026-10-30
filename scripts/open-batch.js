@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const { draftBatch, fetchSnapshot, validateDate, validateSnapshot, batchDates } = require('./draft-content');
+const { draftBatch, feedGospelNote, fetchSnapshot, validateDate, validateSnapshot, batchDates } = require('./draft-content');
 
 const REPOSITORY = path.resolve(__dirname, '..');
 const LEAD_DAYS = 21;
@@ -50,7 +50,7 @@ function formatBatchBody(batch) {
   ];
   if (headings.length) lines.push('**Check the heading.**', '', ...headings.map(note => `- ${note}`), '');
   for (const day of batch.days) {
-    lines.push(`## ${dayName(day.date)}. ${day.gospel}`, '', `${day.celebration || 'Not in the calendar feed'}. [Reading](${day.readingsUrl}).`, '');
+    lines.push(`## ${dayName(day.date)}. ${day.gospel}`, '', `${day.celebration || 'Not in the calendar feed'}. [Reading](${day.readingsUrl}).${feedGospelNote(day)}`, '');
     for (const held of day.heldCandidates) {
       lines.push(`Held, do not send. Source #${held.archiveIndex}. ${held.editorialFindings.map(finding => finding.finding).join(' ')}`, '');
     }
