@@ -1,186 +1,66 @@
-<div align="center">
-
 # Gospel Bot
 
-**Daily gospel reflections for the family group — on time, with grace.**
+Gospel Bot posts one reviewed Gospel message to the family WhatsApp group each day. The messages come from an archive of notes written over many years. A person approves every message in a pull request before it can send.
 
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-3c873a?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![Green API](https://img.shields.io/badge/WhatsApp-Green%20API-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://green-api.com/)
+## What happens each day
 
-*Matches today's Catholic lectionary to a personal archive of messages, then sends the best one — with email previews, retries, and a quiet watchdog.*
+All times are in `Asia/Kolkata` (IST). 00:30 IST is 14:00 in US Central daylight time and 13:00 in US Central standard time.
 
-<br/>
+| Time | Job | What it does |
+| --- | --- | --- |
+| 00:30 | `send` | Sends the approved message for that date through Green API. |
+| 00:45 | `send` | Retries if the first run could not start the attempt. It never sends a second message. |
+| 00:00 to 01:50, every 10 minutes | `reconcile` | Asks Green API whether the message reached the group. |
+| 01:00 | | Delivery deadline. A message that is not confirmed by the next check raises an alert. |
+| 01:30 | | The send window closes. |
+| 5 minutes past each hour | `check` | Logs delivery state and the number of approved days left. |
+| 09:00 | `Content batch` workflow | Opens a review PR when fewer than 21 approved days remain. |
 
-```
-     ·  archive of love  ·  API of the day  ·  one message at midnight  ·
-```
+Alerts go by email from Google Cloud Monitoring.
 
-<br/>
+## How it runs
 
-</div>
+The jobs run on Cloud Run with Cloud Scheduler. A Neon Postgres table holds one row per group per day, and that row stops a message from sending twice. Approved messages are files in `content/messages/`, and the release image contains them. To change a message that has reached production, you release a new image.
 
----
+GitHub Actions builds, tests, and releases. Terraform owns the cloud resources. Production runs the same image that passed staging.
 
-## Why it exists
+## Where things live
 
-Years of thoughtful **"Gospel Msg"** notes live in a WhatsApp archive. This bot keeps that voice alive for the group: it pulls **today's gospel** from the [Catholic Readings API](https://github.com/cpbjr/catholic-readings-api), finds archive entries whose citations fall inside that reading, picks the strongest match, and **delivers it automatically** — with a safety net if anything goes wrong.
+| Path | Contents |
+| --- | --- |
+| `local-lab/src/` | The delivery code. `runtime.ts` is the production entry point. `delivery.ts` owns the daily state. |
+| `local-lab/migrations/` | The production database schema. |
+| `content/messages/` | Approved messages, one file per IST date. |
+| `gospel_messages.json` | The parsed archive. `scripts/open-batch.js` drafts batches from it. |
+| `parse_gospel.js`, `gospel_matcher.js` | The archive importer and the citation matcher. |
+| `infra/` | Terraform for bootstrap, environments, the smoke job, and the canary. |
+| `scripts/cloud/` | Build, release, Neon, smoke, and canary scripts. |
+| `.github/workflows/` | CI, Content batch, Infrastructure, Neon databases, and Release. |
 
----
+The directory is named `local-lab` because the code started as a local simulator. The production image is built from it.
 
-## A day in the life
+## Read next
 
-All schedules use **`Asia/Kolkata` (IST)**.
+- [Run production](docs/operations.md) covers alert emails, status checks, content and code releases, and switching delivery off.
+- [Review a content batch](docs/content-review.md) covers message approval.
+- [Set up an environment](docs/deployment.md) covers a first-time build.
+- [Shared delivery runtime](docs/runtime-design.md) explains the delivery states.
+- [Staging canary](docs/staging-canary.md) and [cloud smoke](docs/cloud-smoke.md) explain the two live checks.
 
-| When | What happens |
-|------|----------------|
-| **5:00 PM** | Tomorrow's message is emailed to the preview inbox so someone can forward manually if needed. |
-| **12:30 AM** | The chosen message goes to the configured WhatsApp group via Green API (with retries). |
-| **1:00 AM** | Watchdog: if nothing was logged as sent, the bot tries again and alerts by email. |
+## Change the code
 
-If all retries fail, the message is **queued** and flushed on the next successful send. The 5 PM preview email to mom serves as the final manual fallback.
+To verify a change, follow the `verify-gospel-bot` skill in `.claude/skills/`. It maps each feature to the commands that prove it. These commands cover most changes.
 
----
-
-## How the message is chosen
-
-```mermaid
-flowchart LR
-  A[Catholic Readings API] --> B[Parse gospel reference]
-  C[gospel_messages.json] --> D[Match citations in range]
-  B --> D
-  D --> E[Score and pick best]
-  E --> F{Match found?}
-  F -->|Yes| G[Build message from archive]
-  F -->|No| H[bible-api.com KJV fallback]
-  G --> I[Green API → WhatsApp group]
-  H --> I
-```
-
-`gospel_matcher.js` normalizes book names (e.g. **JH**, **LK**, **MT**, **MK**) and handles both API-style references and the archive's citation format — including multi-chapter readings like Good Friday (`John 18:1–19:42`) and non-standard formats like `JH(19-28-30)`.
-
----
-
-## Stack
-
-| Piece | Role |
-|-------|------|
-| [Green API](https://green-api.com/) | WhatsApp session and group send via REST |
-| [node-cron](https://www.npmjs.com/package/node-cron) | IST scheduling |
-| [nodemailer](https://nodemailer.com/) | Gmail alerts and previews |
-
-No headless browser. No Puppeteer. No session files to manage.
-
----
-
-## Quick start
-
-### Prerequisites
-
-- **Node.js 18+**
-- A **Green API** account (free Developer plan at [green-api.com](https://green-api.com)) — scan QR once on their dashboard, never again
-- A **Gmail** account with an [App Password](https://myaccount.google.com/apppasswords) for SMTP
-
-### Install
-
-```bash
-git clone https://github.com/YOUR_USERNAME/gospel-bot.git
-cd gospel-bot
-npm install
+```sh
+npm ci --prefix local-lab
+node --test tests/content.test.js
+node local-lab/verify.mjs all
+node local-lab/verify-runtime.mjs
 ```
 
-### Environment
-
-| Variable | Description |
-|----------|-------------|
-| `GREEN_API_ID` | Your Green API instance ID |
-| `GREEN_API_TOKEN` | Your Green API token |
-| `GROUP_ID` | WhatsApp group ID e.g. `120363XXXXXX@g.us` — find it in Green API dashboard → Contacts |
-| `EMAIL_USER` | Gmail address used to send mail |
-| `EMAIL_PASS` | Gmail App Password |
-| `ALERT_EMAIL` | Where operational alerts go (your email) |
-| `PREVIEW_EMAIL` | Where the 5 PM preview goes (mom's email) |
-| `TRIGGER_PORT` | Optional. Local HTTP port (default `3000`) |
-
-### Run
-
-```bash
-npm start
-```
-
-For production, run under **PM2** so it survives reboots:
-
-```bash
-pm2 start app.js --name gospel-bot
-pm2 startup && pm2 save
-```
-
----
-
-## Manual triggers
-
-### CLI
-
-```bash
-node app.js --trigger-now                        # send today's message now
-node app.js --trigger-now --date=2026-04-17      # send for a specific date
-node app.js --preview-now                        # send preview email to mom now
-```
-
-### HTTP (bot must be running via pm2)
-
-```bash
-curl http://localhost:3000/trigger
-curl "http://localhost:3000/trigger?date=2026-04-17"
-curl http://localhost:3000/preview
-curl http://localhost:3000/status
-```
-
----
-
-## Validation
-
-Test the full chain locally before deploying — API call, parsing, archive matching, and final message:
-
-```bash
-node test.js today
-node test.js 2026-04-17
-node test.js 2026-04-17 2026-04-18 2026-04-19    # multiple dates at once
-```
-
-Shows the raw API response, parsed reference, all archive matches with scores, and the final message in a box. Run this with dad to validate a week of dates before going live.
-
----
-
-## Data files
-
-| File | Notes |
-|------|--------|
-| `gospel_messages.json` | Parsed archive — ship this with the bot |
-| `sent.log.json` | Rolling 90-day send log (gitignored) |
-| `pending.json` | Queue for failed sends (gitignored) |
-
-### Rebuilding the archive from a fresh WhatsApp export
-
-```bash
-node parse_gospel.js    # reads _chat.txt, writes gospel_messages.json
-```
-
-Update `INPUT_FILE` in `parse_gospel.js` to point at your export path.
-
----
+Merging to `master` deploys nothing. A release is a separate manual step in [Run production](docs/operations.md).
 
 ## Credits
 
-- Daily readings: [cpbjr/catholic-readings-api](https://github.com/cpbjr/catholic-readings-api)
-- Scripture fallback: [bible-api.com](https://bible-api.com/)
-- WhatsApp delivery: [Green API](https://green-api.com/)
-
----
-
-<div align="center">
-
-**Peace be with you.**
-
-<sub>Built with care for family and the living word.</sub>
-
-</div>
+- Daily readings come from [cpbjr/catholic-readings-api](https://github.com/cpbjr/catholic-readings-api).
+- WhatsApp delivery uses [Green API](https://green-api.com/).

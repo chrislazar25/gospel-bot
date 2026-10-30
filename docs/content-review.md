@@ -1,10 +1,8 @@
 # Review a fourteen-day content batch
 
-Every batch requires human review. The draft tool never approves or sends a message. The first packet is [the October 30 through November 12 preview](../drafts/2026-10-30_2026-11-12/preview.md).
+Every batch requires human review. The draft tool never approves or sends a message. The **Content batch** workflow opens a PR when fewer than 21 approved days remain, as `content/README.md` describes. After you merge a batch, follow the release steps in [Run production](operations.md). Merging alone does not change what production sends.
 
-For that packet, read the [revised messages and your date-by-date feedback](../drafts/2026-10-30_2026-11-12/editorial-review.md) first. It contains actual verse selections in the existing message format. Selection reasons and theological explanations are review notes outside the outgoing payload. The generated preview remains the original archive shortlist for comparison. Editorial proposals do not approve content or clear the generator's holds.
-
-The generated packet contains eleven candidate dates, two held dates, and one reported gap. Twelve dates have archive citations mechanically contained in the reading. November 1 uses `Matthew 5:1-12a`, which the whole-verse model holds as unsupported. November 3 has a known quotation and citation mismatch. Manual review found valid alternatives in the archive, including November 6's `Lk(16:8)` message. Its saved citation field is null, so the generator overlooks it. The revised review names these records without changing the archive or silently clearing the holds.
+The generator can miss valid messages and can propose a message with a wrong citation. Read each proposal against the day's reading, and edit the files in the PR when you find a better message.
 
 The November 3 record quotes the feeding of five thousand but cites `LK(14:19)`. [USCCB's Luke 14](https://bible.usccb.org/bible/luke/14) places verse 19 in the parable of the great feast and describes an invited guest testing oxen. The record remains unchanged in the archive. Findings in [draft-content.findings.json](../scripts/draft-content.findings.json) use SHA-256 of whitespace-collapsed, trimmed text, so export separators and line wrapping preserve the warning. The separate payload hash still covers the exact original bytes. The tool does not automatically verify other quotations.
 
@@ -29,7 +27,7 @@ A matching sender header establishes who posted the message according to the exp
 Start with an explicit IST date, archive, and output directory outside `content/`.
 
 ```sh
-node scripts/draft-content.js --start-date 2026-10-30 --archive gospel_messages.json --output drafts/new-review --fetch-readings
+node scripts/draft-content.js --start-date 2026-10-30 --archive gospel_messages.json --output /tmp/new-review --fetch-readings
 ```
 
 The tool requests the existing Roman Catholic public readings and liturgical-calendar feeds. Each request is a GET with a ten-second timeout, no redirects, and a 256 KiB response limit. A batch makes at most twenty-eight requests. Only fixed public paths containing dates leave the machine. Archive payloads are never sent to an API.
@@ -47,7 +45,7 @@ The batch records the archive hash, record count, source indices, payload hashes
 Replay the saved snapshot without network requests.
 
 ```sh
-node scripts/draft-content.js --start-date 2026-10-30 --archive gospel_messages.json --output drafts/replayed-review --snapshot drafts/2026-10-30_2026-11-12/readings-snapshot.json
+node scripts/draft-content.js --start-date 2026-10-30 --archive gospel_messages.json --output /tmp/replayed-review --snapshot tests/fixtures/review-packet/readings-snapshot.json
 ```
 
 Identical inputs produce identical output bytes. Repeating against an identical output succeeds without changes. Missing files from a partial run are recreated only when existing files match. Different existing output bytes cause an error and require a new directory. Output paths inside the repository's approved `content/` directory are rejected, including symlink aliases.

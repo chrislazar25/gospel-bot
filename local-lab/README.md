@@ -40,4 +40,4 @@ The checks cover competing replicas, rejection and retry, accepted requests with
 
 Unknown attempts stay held across retries and restarts. A lost response can leave a message unknown even if the fake provider's log shows acceptance. The application cannot use that administrative log to invent provider correlation. A crash after claiming but before sending can leave a day unsent.
 
-This is a local simulation contract. Real Green API integration, editorial Git approval, AI ops, GCP deployment, and production cutover are separate milestones.
+This is a local simulation contract. It does not exercise the production schema or Green API. The production schema never lets `unknown` return to `pending`, so `node local-lab/verify-runtime.mjs` covers that behavior.

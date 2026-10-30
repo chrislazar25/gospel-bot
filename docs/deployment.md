@@ -1,6 +1,6 @@
 # Set up staging and production
 
-This guide connects existing Neon databases to disabled Cloud Run deployments in one billed GCP project. It does not activate delivery. No cloud resources have been provisioned by the local validation.
+This guide builds an environment from nothing. It connects existing Neon databases to disabled Cloud Run deployments in one billed GCP project. Staging and production already exist, so use [Run production](operations.md) for daily work.
 
 ## Prepare the accounts
 
@@ -46,12 +46,17 @@ Add these variables to each GitHub environment. Use the same GCP project, WIF pr
 | `NEON_DATABASE_NAME` | Existing database name, such as `neondb` |
 | `GREEN_API_URL` | Instance-assigned `https://HOST.api.green-api.com` URL |
 | `GREEN_API_ID` | Instance ID |
-| `TARGET_CHAT_ID` | Approved WhatsApp chat ID |
-| `NOTIFICATION_EMAIL` | Address that receives operational alerts |
-| `STATUS_INVOKERS_JSON` | JSON array such as `["user:you@example.com"]` |
 | `SECRET_VERSIONS_JSON` | Numeric secret versions as JSON, initially `{"database":"1","migration-database":"1","status-database":"1","green-token":"1"}` |
 | `MONITORING_ENABLED` | Leave unset or `false` until the separate activation task validates recurring checks and notification delivery |
 | `INITIAL_IMAGE` | Immutable image reference from the next step |
+
+Add these values as environment secrets, not variables. This repository is public, and GitHub masks only secrets in its Actions logs.
+
+| Secret | Value |
+| --- | --- |
+| `TARGET_CHAT_ID` | Approved WhatsApp chat ID |
+| `NOTIFICATION_EMAIL` | Address that receives operational alerts |
+| `STATUS_INVOKERS_JSON` | JSON array such as `["user:you@example.com"]` |
 
 Use separate Neon projects or clean branches for staging and production. Create the branches before app roles exist. A later staging clone includes its roles and deliberately fails provisioning if production has no corresponding stored credentials. Different databases on one branch share Postgres roles and cannot isolate these managed credentials.
 
@@ -69,7 +74,7 @@ You can now run **Infrastructure** with operation `secrets`, followed by **Neon 
 
 ## Build the initial image and create secrets
 
-Approved content must contain at least 14 consecutive dates starting today in `Asia/Kolkata`. The repository intentionally starts without approved production content. The container's `content-check` command blocks image publication until that content exists. Review and merge the content before proceeding. Docker builds use repository-root context and `local-lab/Dockerfile.runtime`.
+Approved content must contain at least 14 consecutive dates starting today in `Asia/Kolkata`. The container's `content-check` command blocks image publication until that content exists. Docker builds use repository-root context and `local-lab/Dockerfile.runtime`.
 
 Run **Release** on `master` with environment `staging` and `build_only` checked. This publishes the image through WIF without requiring existing Cloud Run resources. It uploads `candidate-image` containing `image.txt`. Download that artifact and set `INITIAL_IMAGE` in both environments to the digest reference in `image.txt`.
 
@@ -100,11 +105,11 @@ Both releases reject active schedules and deploy with sending disabled. They do 
 
 ## Inspect status and monitoring
 
-In GCP Monitoring, open the `gospel-ENV delivery` dashboard. Its log panel shows the latest structured `delivery_check`, including date, delivery status, and `contentDaysRemaining`. Expand the latest payload and check its timestamp. The charts show daily check, problem, and content-warning log counts. Both alert policies are disabled by default while schedules are paused. Once explicitly enabled, delivery problems and content warnings send email alerts. The missing-evidence policy alerts after 30 minutes without a `delivery_check` event from the check job. Monitoring absence policies need an initial observed time series. Verify the first successful check and the notification channel before relying on absence detection. Email verification may require a confirmation in GCP Monitoring. Keep `MONITORING_ENABLED=false` throughout initial setup. During the separate activation task, first update the reviewed scheduler configuration so recurring checks remain enabled across Terraform applies. Confirm the first sample, recurring executions, and notification delivery, then enable monitoring in a reviewed apply. The dashboard remains available when alerts are disabled.
+In GCP Monitoring, open the `gospel-ENV delivery` dashboard. Its log panel shows the latest structured `delivery_check`, including date, delivery status, and `contentDaysRemaining`. Expand the latest payload and check its timestamp. The charts show daily check, problem, and content-warning log counts. Both alert policies are disabled by default while schedules are paused. Once explicitly enabled, delivery problems and content warnings send email alerts. The missing-evidence policy alerts after two hours without a `delivery_check` event from the check job. Monitoring absence policies need an initial observed time series. Verify the first successful check and the notification channel before relying on absence detection. Email verification may require a confirmation in GCP Monitoring. Keep `MONITORING_ENABLED=false` throughout initial setup. During the separate activation task, first update the reviewed scheduler configuration so recurring checks remain enabled across Terraform applies. Confirm the first sample, recurring executions, and notification delivery, then enable monitoring in a reviewed apply. The dashboard remains available when alerts are disabled.
 
 Read the authenticated status endpoint using an authorized account. The release itself checks `/health`; an IAM failure returns an HTTP error. There is no custom status UI. Use Cloud Run logs, execution history, the private JSON endpoint, and GCP Monitoring.
 
-The send schedule fires at 00:30 IST. The send window is 00:30 to 01:30 IST, with a 01:00 IST delivery deadline. Check and reconciliation run every ten minutes. All three schedules stay paused until activation. Alerts can identify a stopped check only after it has emitted evidence at least once. Content coverage appears in structured `delivery_check.contentDaysRemaining` logs, and overdue or failed delivery appears as `delivery_problem` with `ERROR` severity.
+The send schedule fires at 00:30 and 00:45 IST. The send window is 00:30 to 01:30 IST, with a 01:00 IST delivery deadline. Reconciliation runs every ten minutes from 00:00 to 01:50 IST. The check runs at five minutes past each hour, so its deadline alert arrives at 01:05 IST. This schedule lets Neon suspend between runs. All three schedules stay paused until activation. Alerts can identify a stopped check only after it has emitted evidence at least once. Content coverage appears in structured `delivery_check.contentDaysRemaining` logs, and overdue or failed delivery appears as `delivery_problem` with `ERROR` severity. The problem policy alerts on `delivery_problem` from the send, reconcile, and check jobs.
 
 ## Switch delivery on
 
@@ -116,7 +121,7 @@ Activation requires a successful release in that environment, approved content f
 
 To switch delivery off, delete `FIRST_SEND_DATE` and apply again. Every schedule pauses and every job gets `SENDING_ENABLED=false`.
 
-A release refuses to run while schedules are active, and it deploys with `SENDING_ENABLED=false`. To release new content, switch delivery off, release, then switch it back on with the same `FIRST_SEND_DATE`. Do this outside 00:30 to 01:30 IST.
+A release refuses to run while schedules are active, and it deploys with `SENDING_ENABLED=false`. [Run production](operations.md) has the release steps.
 
 ## Validate changes locally
 
@@ -126,7 +131,7 @@ terraform -chdir=infra/bootstrap init -backend=false
 terraform -chdir=infra/bootstrap validate
 terraform -chdir=infra/environment init -backend=false
 terraform -chdir=infra/environment validate
-actionlint .github/workflows/infrastructure.yml .github/workflows/neon.yml .github/workflows/release.yml
+actionlint .github/workflows/*.yml
 for script in scripts/cloud/*.sh; do bash -n "$script"; done
 for module in scripts/cloud/neon*.mjs; do node --check "$module"; done
 npm ci --prefix local-lab
