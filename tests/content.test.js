@@ -404,6 +404,7 @@ test('US Thanksgiving keeps the weekday Gospel', () => {
   assert.equal(byDate['2026-11-26'], 'Week 34 fixture. LK(21:26-28).');
   assert.equal(byDate['2026-11-27'], 'Thanksgiving fixture. LK(17:17-19).');
   assert.match(formatBatchBody(batch), /## Thu 26 Nov\. Luke 21:20-28\n\n.*The feed gives the US Thanksgiving Gospel, Luke 17:11-19\./);
+  assert.match(formatPreview(batch), /Luke 21:20-28\..*\n\n.*The feed gives the US Thanksgiving Gospel, Luke 17:11-19\./);
   assert.equal(proposals('2023-11-20').byDate['2023-11-23'], 'Week 33 fixture. LK(19:42).');
   assert.equal(proposals('2027-11-20').byDate['2027-11-25'], 'Week 34 fixture. LK(21:26-28).');
 });

@@ -86,6 +86,8 @@ function localGospel(date, feedGospel) {
   return day >= 24 ? 'Luke 21:20-28' : 'Luke 19:41-44';
 }
 
+const feedGospelNote = day => day.feedGospel ? ` The feed gives the US Thanksgiving Gospel, ${day.feedGospel}. India keeps the weekday Gospel.` : '';
+
 const normalized = text => (text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const verseCount = reference => reference.intervals.reduce((sum, range) => sum + range.end - range.start + 1, 0);
 
@@ -196,7 +198,7 @@ function formatPreview(batch) {
   ];
   for (const day of batch.days) {
     lines.push(`## ${day.date}. ${day.state}.`, '', `${day.gospel}. ${day.celebration || 'Calendar unavailable'}.`, '',
-      `[Reading source](${day.readingsUrl}). [Calendar source](${day.calendarUrl}).`, '');
+      `[Reading source](${day.readingsUrl}). [Calendar source](${day.calendarUrl}).${feedGospelNote(day)}`, '');
     if (day.calendarHold) lines.push(`Calendar hold: ${day.calendarHold}`, '');
     if (!day.proposed) lines.push(`Hold: ${day.reason}.`, '', ...day.holds.map(hold => `- ${hold}`), '');
     for (const held of day.heldCandidates) {
@@ -280,5 +282,5 @@ async function main(args) {
   console.log(JSON.stringify({ approval: batch.approval, startDate: batch.startDate, endDate: batch.endDate, ...batch.summary, output: options['--output'] }));
 }
 
-module.exports = { validateDate, batchDates, validateSnapshot, fetchSnapshot, draftBatch, formatPreview, writeDraft, main };
+module.exports = { validateDate, batchDates, validateSnapshot, fetchSnapshot, draftBatch, feedGospelNote, formatPreview, writeDraft, main };
 if (require.main === module) main(process.argv.slice(2)).catch(error => { console.error(error.message); process.exitCode = 1; });
