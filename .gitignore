@@ -1,7 +1,4 @@
 node_modules/
-session/
-sent.log.json
-pending.json
 .env
 gha-creds-*.json
 image.txt

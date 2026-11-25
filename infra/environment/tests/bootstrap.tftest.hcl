@@ -76,8 +76,12 @@ run "activated_application" {
     first_send_date    = "2026-10-31"
   }
   assert {
-    condition     = alltrue([for job in google_cloud_scheduler_job.job : !job.paused]) && google_cloud_scheduler_job.job["send"].schedule == "30 0 * * *"
-    error_message = "A first send date unpauses every schedule and sends at 00:30 IST."
+    condition     = alltrue([for job in google_cloud_scheduler_job.job : !job.paused]) && google_cloud_scheduler_job.job["send"].schedule == "30,45 0 * * *"
+    error_message = "A first send date unpauses every schedule and sends at 00:30 IST with one retry at 00:45 IST."
+  }
+  assert {
+    condition     = google_cloud_scheduler_job.job["reconcile"].schedule == "*/10 0-1 * * *" && google_cloud_scheduler_job.job["check"].schedule == "5 * * * *"
+    error_message = "Receipts are polled for two hours after the send, and the check runs hourly so the database can suspend."
   }
   assert {
     condition = alltrue([for job in google_cloud_run_v2_job.job : length([

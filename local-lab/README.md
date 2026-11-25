@@ -1,7 +1,5 @@
 # Run the local delivery lab
 
-Open [the whiteboard](WHITEBOARD.html) in your browser to see the components and failure behavior.
-
 Start the lab from this directory with Docker Desktop running.
 
 ```sh
@@ -30,7 +28,7 @@ From the repository root, use host Node 22 or newer.
 node local-lab/verify.mjs all
 ```
 
-This creates a separate stack with random ports and an empty disposable volume. It exercises the real API against Postgres and the fake provider, keeps reports in `local-lab/evidence/`, and removes its own stack. It does not reset your developer stack. For the staged launch, doctor, drive, and cleanup workflow, use [verify-gospel-lab](../.cursor/skills/verify-gospel-lab/SKILL.md).
+This creates a separate stack with random ports and an empty disposable volume. It exercises the real API against Postgres and the fake provider, keeps reports in `local-lab/evidence/`, and removes its own stack. It does not reset your developer stack. For the staged launch, doctor, drive, and cleanup workflow, use [verify-gospel-bot](../.cursor/skills/verify-gospel-bot/SKILL.md).
 
 Run `node local-lab/verify-lifecycle.mjs` to check that a second launch preserves an unfinished run and repeated cleanup preserves its evidence.
 
@@ -42,8 +40,4 @@ The checks cover competing replicas, rejection and retry, accepted requests with
 
 Unknown attempts stay held across retries and restarts. A lost response can leave a message unknown even if the fake provider's log shows acceptance. The application cannot use that administrative log to invent provider correlation. A crash after claiming but before sending can leave a day unsent.
 
-This is a local simulation contract. Real Green API integration, editorial Git approval, AI ops, GCP deployment, and production cutover are separate milestones.
-
-## Check the diagram
-
-On macOS with Google Chrome installed, run `node local-lab/verify-whiteboard.mjs` from the repository root. It checks desktop and mobile layouts, every scenario button, and JavaScript errors. Screenshots and results stay in `local-lab/evidence/`.
+This is a local simulation contract. It does not exercise the production schema or Green API. The production schema never lets `unknown` return to `pending`, so `node local-lab/verify-runtime.mjs` covers that behavior.

@@ -49,7 +49,8 @@ also requires a master `workflow_dispatch` in the exact Release workflow's
 
 The GitHub staging environment needs the existing GCP project, region, state
 bucket and WIF settings, the assigned `GREEN_API_URL`, numeric `GREEN_API_ID`,
-private `CANARY_TARGET_CHAT_ID`, `CANARY_ATTEMPT`, and `SECRET_VERSIONS_JSON`. Pin numeric versions
+`CANARY_ATTEMPT`, and `SECRET_VERSIONS_JSON` as variables, and `CANARY_TARGET_CHAT_ID` as an
+environment secret so that logs mask it. Pin numeric versions
 for the four existing `gospel-staging-{database,status-database,migration-database,green-token}`
 secrets. No credential value belongs in GitHub variables or this document.
 Runtime and status URLs must select the same host/database, the `gospel_runtime`

@@ -11,12 +11,13 @@ export type Delivery = z.infer<typeof deliverySchema>;
 export type SendOutcome = { kind: 'accepted'; providerId: string } | { kind: 'rejected' } | { kind: 'unknown' };
 export type ReceiptOutcome = { kind: 'receipt'; providerId: string; status: 'sent' | 'delivered' | 'read' | 'failed' } | { kind: 'unavailable' };
 export type Provider = {
+  ready(): Promise<boolean>;
   send(delivery: Delivery): Promise<SendOutcome>;
   receipt(delivery: Delivery): Promise<ReceiptOutcome>;
 };
 export type SendPolicy = { kind: 'lab' } | { kind: 'scheduled'; enabled: boolean; firstDate: string | undefined; startMinute: number; endMinute: number };
 export class DeliveryError extends Error {
-  constructor(readonly code: 'not_found' | 'sending_held' | 'date_ineligible' | 'outside_window') { super(code); }
+  constructor(readonly code: 'not_found' | 'sending_held' | 'date_ineligible' | 'outside_window' | 'provider_not_ready') { super(code); }
 }
 export function istDate(now: Date) {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
@@ -77,6 +78,7 @@ export function createDeliveryService(options: {
     }
     if (!row) throw new Error('daily insert missing');
     checkSendPolicy(options.policy, await options.now());
+    if (row.status === 'pending' && !await provider.ready()) throw new DeliveryError('provider_not_ready');
     const claimed = (await rows("UPDATE deliveries SET status='unknown', attempts=attempts+1, evidence='attempt committed before HTTP' WHERE id=$1 AND status='pending' RETURNING *", [row.id]))[0];
     if (!claimed) return get(row.id);
     try {

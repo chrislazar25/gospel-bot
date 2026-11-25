@@ -2,7 +2,6 @@
 **/dist
 **/evidence
 .git
-.audit
 **/.env
 **/.env.*
 **/*.tfstate*

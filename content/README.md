@@ -2,7 +2,7 @@
 
 Synthetic lab messages are not approved Gospel content.
 
-Each file `messages/YYYY-MM-DD.txt` holds the exact message for that date in Asia/Kolkata. Merging a PR that adds files publishes them.
+Each file `messages/YYYY-MM-DD.txt` holds the exact message for that date in Asia/Kolkata. Merging a PR approves the files. A later release puts them in the production image.
 
 The **Content batch** workflow runs daily at 09:00 IST. When fewer than 21 days of messages remain and no batch PR is open, it drafts the next 14 days from the archive and opens a PR labelled `content-batch`. The PR body lists dates that need a message and headings to check. Edit or add files in the PR, then merge it. A date missing in the middle fails CI. A missing last date moves into the next batch. GitHub may hold the PR's CI until the owner approves it under **Approve workflows to run**, because the bot counts as a first-time contributor. Closing a batch PR keeps its branch and edits, and the workflow stops with an error until you reopen the PR or delete the branch. The image build runs `scripts/index-content.mjs`, which writes `schedule.json` with hashes of the exact UTF-8 bytes. The runtime checks those hashes. Run it locally only to test the runtime against this directory.
 

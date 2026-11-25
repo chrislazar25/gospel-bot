@@ -26,7 +26,10 @@ test('real Postgres, production schema, and Green API wire protocol', async t =>
   const server = createServer((request, response) => {
     void (async () => {
       const reply = (value: unknown, code = 200) => response.writeHead(code, { 'content-type': 'application/json' }).end(JSON.stringify(value));
-      if (request.url === '/waInstance1234/getStateInstance/test-token') return reply({ stateInstance: mode === 'unauthorized' ? 'notAuthorized' : 'authorized' });
+      if (request.url === '/waInstance1234/getStateInstance/test-token') {
+        if (mode === 'state-error') return reply({ error: 'state unavailable' }, 500);
+        return reply({ stateInstance: mode === 'unauthorized' ? 'notAuthorized' : 'authorized' });
+      }
       const chunks = [];
       for await (const chunk of request) chunks.push(Buffer.from(chunk));
       const body: unknown = JSON.parse(Buffer.concat(chunks).toString());
@@ -127,13 +130,25 @@ test('real Postgres, production schema, and Green API wire protocol', async t =>
       assert.equal((await service().reconcile(row.id)).status, 'failed');
       await service().sendToday(); assert.equal(sends, 1);
     });
-    for (const failure of ['drop', 'malformed', 'server-error', 'unauthorized']) {
+    for (const failure of ['drop', 'malformed', 'server-error']) {
       await t.test(`${failure} stays unknown and is never retried or guessed from journal history`, async () => {
         await reset(); mode = failure;
         const row = await service().sendToday(); assert.equal(row.status, 'unknown');
         await service().sendToday(); await service().reconcile(row.id);
-        assert.equal(sends, failure === 'unauthorized' ? 0 : 1);
+        assert.equal(sends, 1);
         assert.equal(receiptCalls, 0);
+      });
+    }
+    for (const failure of ['unauthorized', 'state-error']) {
+      await t.test(`${failure} sends nothing and leaves the day open for a later attempt`, async () => {
+        await reset(); mode = failure;
+        await assert.rejects(service().sendToday(), /provider_not_ready/);
+        assert.equal(sends, 0);
+        assert.deepEqual((await db.query('SELECT status, attempts FROM deliveries')).rows, [{ status: 'pending', attempts: 0 }]);
+        mode = 'success';
+        const row = await service().sendToday();
+        assert.equal(row.status, 'accepted');
+        assert.equal(sends, 1);
       });
     }
     await t.test('later receipts are checked despite fifty older sent or unavailable receipts and a restarted worker', async () => {
