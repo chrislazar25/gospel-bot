@@ -32,27 +32,35 @@ function parseReference(raw, format = 'api') {
   if (!book) return { state: 'unsupported', reason: 'unsupported-book' };
   let body = match[2].trim();
   if (format === 'archive' && /^\d+-\d+(?:-\d+)?$/.test(body)) body = body.replace('-', ':');
-  if (/\d[a-z]/i.test(body)) return { state: 'unsupported', reason: 'partial-verses-unsupported' };
+  if (format === 'archive' && /\d[a-z]/i.test(body)) return { state: 'unsupported', reason: 'partial-verses-unsupported' };
   let chapter = null;
   const intervals = [];
   for (const part of body.split(/[,;]/)) {
-    const segment = part.trim().match(/^(?:(\d+)\s*:\s*)?(\d+)(?:\s*-\s*(?:(\d+):)?(\d+))?$/);
+    const segment = part.trim().match(/^(?:(\d+)\s*:\s*)?(\d+)([a-z])?(?:\s*-\s*(?:(\d+):)?(\d+)([a-z])?)?$/i);
     if (!segment) return { state: 'unsupported', reason: 'unsupported-reference-syntax' };
     const startChapter = segment[1] ? Number(segment[1]) : chapter;
     const start = Number(segment[2]);
-    const endChapter = segment[3] ? Number(segment[3]) : startChapter;
-    const end = segment[4] ? Number(segment[4]) : start;
+    const endChapter = segment[4] ? Number(segment[4]) : startChapter;
+    const end = segment[5] ? Number(segment[5]) : start;
+    const startPartial = Boolean(segment[3]);
+    const endPartial = segment[5] ? Boolean(segment[6]) : startPartial;
     const counts = GOSPEL_VERSE_COUNTS[book];
     if (!startChapter || startChapter > counts.length || !endChapter || endChapter > counts.length ||
         start < 1 || start > counts[startChapter - 1] || end < 1 || end > counts[endChapter - 1] ||
         endChapter < startChapter || (startChapter === endChapter && end < start)) {
       return { state: 'unsupported', reason: 'invalid-chapter-or-verse-bounds' };
     }
+    const expanded = [];
     for (let ch = startChapter; ch <= endChapter; ch++) {
-      intervals.push({ chapter: ch, start: ch === startChapter ? start : 1, end: ch === endChapter ? end : counts[ch - 1] });
+      expanded.push({ chapter: ch, start: ch === startChapter ? start : 1, end: ch === endChapter ? end : counts[ch - 1] });
     }
+    // A partial verse is never widened to the whole verse, so the reading keeps only its whole verses.
+    if (startPartial) expanded[0].start++;
+    if (endPartial) expanded[expanded.length - 1].end--;
+    intervals.push(...expanded.filter(interval => interval.start <= interval.end));
     chapter = endChapter;
   }
+  if (!intervals.length) return { state: 'unsupported', reason: 'no-whole-verses' };
   intervals.sort((a, b) => a.chapter - b.chapter || a.start - b.start);
   const union = [];
   for (const interval of intervals) {

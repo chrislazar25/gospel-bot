@@ -2,9 +2,9 @@
 
 2026-10-30 through 2026-11-12. Roman Catholic feed. Dates use Asia/Kolkata.
 
-13 candidate dates. 1 dates held as unsupported. Archive gaps: 0. Nothing is approved.
+14 candidate dates. 0 dates held as unsupported. Archive gaps: 0. Nothing is approved.
 
-13 dates have mechanically contained archive citations. Known quotation defects can still hold a date.
+14 dates have mechanically contained archive citations. Known quotation defects can still hold a date.
 
 Authorship and quotation accuracy remain unverified. Check each quotation against its citation, the complete reading, the local calendar, and recent reuse before approval.
 
@@ -85,15 +85,44 @@ Original label: Today's. Words: 40.
 
 </details>
 
-## 2026-11-01. unsupported.
+## 2026-11-01. candidate.
 
 Matthew 5:1-12a. All Saints.
 
 [Reading source](https://cpbjr.github.io/catholic-readings-api/readings/2026/11-01.json). [Calendar source](https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-01.json).
 
-Hold: partial-verses-unsupported.
+- Label review required. Proposed source #1130 uses "4th Ordinary Sunday". Compare with "All Saints".
+- Label review required. Alternative 1 source #1041 uses "All Saints day". Compare with "All Saints".
+- Label review required. Alternative 2 source #555 uses "All Saints day". Compare with "All Saints".
 
-- Reading cannot be matched safely. Resolve the full reference before choosing a message.
+### Proposed exact archived message. Unapproved.
+
+Source #1130. Archive date 2026-01-31. Citation MT(5:3,4,9).
+
+Original label: 4th Ordinary Sunday. Words: 61.
+
+<pre>4th Ordinary Sunday Gospel Msg ( The Beatitudes) Jesus called his disciples and said to them, "Blessed are the poor in spirit, for theirs is the kingdom of heaven. Blessed are those  who mourn, for they will be comforted. Blessed are the peacemakers, for they will be called children of God." MT(5:3,4,9) Jesus is Lord, spread the living word of God.</pre>
+
+<details>
+<summary>Alternative archived messages. 2 available. Unapproved.</summary>
+
+### Alternative 1. Unapproved.
+
+Source #1041. Archive date 2025-10-31. Citation MT(5:9-10).
+
+Original label: All Saints day. Words: 53.
+
+<pre>All Saints day Gospel Msg ( Children of God ) Jesus said, " Blessed are the peacemakers, for they will be called children of God. Blessed are those who are persecuted for righteousness' sake, for theirs is the kingdom of heaven." MT(5:9-10) Happy Feast Everyone!!Jesus is Lord, spread the living word of God.</pre>
+
+### Alternative 2. Unapproved.
+
+Source #555. Archive date 2022-10-31. Citation MT(5:9-10).
+
+Original label: All Saints day. Words: 51.
+
+<pre>All Saints day Gospel Msg ( Children of God ) Jesus said, " Blessed are the peacemakers, for they will be called children of God. Blessed are those who are persecuted for righteousness' sake, for theirs is the kingdom of heaven." MT(5:9-10) Jesus is Lord, spread the living word of God.</pre>
+
+</details>
 
 ## 2026-11-02. candidate.
 

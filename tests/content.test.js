@@ -173,7 +173,7 @@ test('import CLI writes a new archive and refuses to overwrite it', t => {
 
 test('draft is deterministic and preserves exact payloads, provenance holds, alternatives, and gaps', () => {
   const feed = snapshot();
-  feed.days[1].readings.readings.gospel = 'Matthew 5:1-12a';
+  feed.days[1].readings.readings.gospel = 'John 3:16a';
   feed.days[2].readings.readings.gospel = 'Luke 16:1-8';
   const first = draft(feed);
   assert.deepEqual(first, draft(JSON.parse(JSON.stringify(feed))));
@@ -316,7 +316,7 @@ test('committed review packet replays exactly and every displayed payload matche
   assert.equal(preview.split(stored.sourceSnapshot.archiveSha256).length - 1, 1);
   assert.equal(preview.split('Authorship and quotation accuracy remain unverified.').length - 1, 1);
   assert.ok(preview.includes('[Full metadata and payload hashes](draft-batch.json)'));
-  assert.deepEqual(stored.summary, { mechanicalCandidateDates: 13, candidates: 13, gaps: 0, unsupported: 1 });
+  assert.deepEqual(stored.summary, { mechanicalCandidateDates: 14, candidates: 14, gaps: 0, unsupported: 0 });
   assert.equal(stored.days.length, 14);
   for (const day of stored.days) {
     assert.equal(day.approval, 'DRAFT_REQUIRES_REVIEW');
