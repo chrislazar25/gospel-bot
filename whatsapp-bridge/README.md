@@ -4,7 +4,7 @@ This bridge turns problem reports from one WhatsApp group into GitHub issues. It
 
 ## What it does
 
-The bridge links to a WhatsApp number as a linked device using Baileys. It watches one group. Each text message becomes an issue in the GitHub repo, labelled `benny:report` and `benny:new`. The bridge reacts to the message with 👀.
+The bridge links to a WhatsApp number as a linked device using Baileys. It watches one group. Messages sent while the Mac was offline arrive when it reconnects. The bridge takes those only if they were sent in the last 24 hours, and applies the same group, bot-reply and ledger checks as live messages. Each text message becomes an issue in the GitHub repo, labelled `benny:report` and `benny:new`. The bridge reacts to the message with 👀.
 
 A photo is uploaded to the `benny-media` branch of the repo under `reports/` and embedded in the issue. Photos over 10 MB are noted instead of uploaded. The bridge downloads a photo only from an `https` host under `whatsapp.net`. A photo that points anywhere else is treated like a voice note, and the bridge logs `media_url_rejected`. Voice notes and videos without text get a 🤔 and a reply asking for a typed description. They do not become issues. View-once photos and videos get the same reply even with a caption. The bridge never downloads or uploads them, because the sender asked for them not to be kept. The token needs contents write access for the upload.
 

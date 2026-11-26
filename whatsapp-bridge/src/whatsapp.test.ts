@@ -127,17 +127,18 @@ function fakeSocket() {
       end: async () => {},
     };
   }) as unknown as typeof makeWASocket;
-  return { socket, seen, emit: (u: object) => handlers.get('connection.update')!(u) };
+  return { socket, seen, emit: (u: object) => handlers.get('connection.update')!(u), upsert: (u: object) => handlers.get('messages.upsert')!(u) };
 }
 const connect = async (interactive: boolean, pairPhone?: string) => {
   const f = fakeSocket();
   const events: string[] = [];
+  const received: string[] = [];
   let unlinked = 0;
-  const wa = await connectWhatsapp(
-    { home: join(mkdtempSync(join(tmpdir(), 'wa-')), 'home'), interactive, pairPhone, log: (e) => events.push(e), onStop: () => { unlinked++; } },
-    f.socket,
-  );
-  return { ...f, wa, events, unlinked: () => unlinked };
+  const wa = await connectWhatsapp({
+    home: join(mkdtempSync(join(tmpdir(), 'wa-')), 'home'), interactive, pairPhone, log: (e) => events.push(e), onStop: () => { unlinked++; },
+    onMessage: (m) => received.push(m.key.id),
+  }, f.socket);
+  return { ...f, wa, events, received, unlinked: () => unlinked };
 };
 
 test('run mode never prints a QR or pairs: an unlinked session logs and stops', async () => {
@@ -187,6 +188,16 @@ test('a lost connection reconnects', async (t) => {
   t.mock.timers.tick(60000);
   assert.equal(c.seen.sockets, 2);
   assert.equal(c.unlinked(), 0);
+});
+
+test('messages delivered after an outage are taken only when sent within the last day', async () => {
+  const c = await connect(false);
+  const now = Math.floor(Date.now() / 1000);
+  const at = (id: string, messageTimestamp: number) => ({ key: { ...key, id }, message: { conversation: 'a' }, messageTimestamp });
+  c.upsert({ type: 'notify', messages: [at('LIVE', now)] });
+  c.upsert({ type: 'append', messages: [at('HOUR', now - 3600), at('TWO_DAYS', now - 2 * 86400), at('NO_TIME', 0)] });
+  c.upsert({ type: 'other', messages: [at('OTHER', now)] });
+  assert.deepEqual(c.received, ['LIVE', 'HOUR']);
 });
 
 test('the socket never marks the owner online and never syncs history', async () => {

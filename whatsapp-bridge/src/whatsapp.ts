@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import makeWASocket, { Browsers, DisconnectReason, downloadMediaMessage, normalizeMessageContent, type proto, useMultiFileAuthState, type WAMessage } from 'baileys';
+import makeWASocket, { Browsers, DisconnectReason, downloadMediaMessage, normalizeMessageContent, type proto, toNumber, unixTimestampSeconds, useMultiFileAuthState, type WAMessage } from 'baileys';
 import qrcode from 'qrcode-terminal';
 import { z } from 'zod';
 import type { Attachment, Incoming, Whatsapp } from './bridge.js';
@@ -23,6 +23,10 @@ const STOP_REASONS: Partial<Record<number, string>> = {
   [DisconnectReason.forbidden]: 'wa_forbidden',
   [DisconnectReason.multideviceMismatch]: 'wa_multidevice_mismatch',
 };
+const OFFLINE_WINDOW_SECONDS = 24 * 60 * 60;
+// Baileys marks messages delivered while the bridge was offline as 'append'. Only recent ones are reports worth taking.
+const wanted = (type: string, m: WAMessage) =>
+  type === 'notify' || (type === 'append' && unixTimestampSeconds() - toNumber(m.messageTimestamp) <= OFFLINE_WINDOW_SECONDS);
 const statusOf = (e: unknown) => z.object({ output: z.object({ statusCode: z.number() }) }).safeParse(e).data?.output.statusCode;
 
 type Content = WAMessage['message'];
@@ -96,8 +100,7 @@ export async function connectWhatsapp(o: {
     let asked = false;
     s.ev.on('creds.update', () => { void saveCreds().catch((e) => o.log('creds_save_failed', { error: why(e) })); });
     s.ev.on('messages.upsert', ({ messages, type }) => {
-      if (type !== 'notify') return;
-      for (const m of messages) { const i = toIncoming(m, o.log); if (i) o.onMessage?.(i); }
+      for (const m of messages) { const i = wanted(type, m) && toIncoming(m, o.log); if (i) o.onMessage?.(i); }
     });
     s.ev.on('connection.update', async (u) => {
       if (u.qr && !state.creds.registered) {
