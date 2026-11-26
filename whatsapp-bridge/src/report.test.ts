@@ -8,6 +8,21 @@ test('phone-like numbers are removed from the body', () => {
   assert.equal(body.split('[number removed]').length - 1, 4);
 });
 
+const unicodeNumbers = [
+  '+44\u00A07700\u00A0900123', '+33\u202F6\u202F12\u202F34\u202F56\u202F78', '+1\u2013555\u2013123\u20134567',
+  '+49\u2009151\u20091234\u20095678', '+1\u2011555\u2011123\u20114567', '\u2212555\u2007123\u20074567', '\uFF0B\uFF14\uFF14\u00A0\uFF17\uFF17\uFF10\uFF10\uFF19\uFF10\uFF10\uFF11\uFF12\uFF13',
+];
+
+test('numbers formatted with Unicode spaces and dashes are removed from the title, body and follow-up', () => {
+  for (const n of unicodeNumbers) {
+    const digits = (s: string) => s.replace(/[^0-9\uFF10-\uFF19]/gu, '');
+    for (const out of [issueTitle(`call ${n} now`), issueBody(`call ${n} now`, 'M1').split('<!--')[0]!, followupBody(`call ${n} now`)]) {
+      assert.ok(out.includes('[number removed]'), JSON.stringify(out));
+      assert.equal(digits(out.split('<!--')[0]!), '', JSON.stringify(out));
+    }
+  }
+});
+
 test('short numbers and verse references survive', () => {
   assert.match(issueBody('The reading for 2026-12 shows John 3:16 and 1234567 items', 'M1'), /John 3:16 and 1234567 items/);
 });

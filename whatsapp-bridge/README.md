@@ -14,7 +14,7 @@ Every poll it reads each open report's issue and derives a state from its labels
 
 States, labels, emojis and replies live in one table in `src/states.ts`. Every bot reply starts with "🤖 ".
 
-Phone-like numbers are removed from issue text. The sender's WhatsApp ID stays in `$BRIDGE_HOME/reports.json` and never goes to GitHub.
+Phone-like numbers are removed from issue titles, bodies and comments, including numbers written with non-breaking spaces, Unicode dashes or fullwidth digits. The sender's WhatsApp ID stays in `$BRIDGE_HOME/reports.json` and never goes to GitHub.
 
 ## Environment variables
 

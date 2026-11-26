@@ -1,6 +1,7 @@
 import { REPORT_LABEL, TABLE } from './states.js';
 
-const PHONE_LIKE = /\+?\d(?:[ \-.()]{0,2}\d){7,}/g;
+// Separators include the Unicode spaces and dashes phones and keyboards insert (NBSP, narrow NBSP, en dash, minus sign).
+const PHONE_LIKE = /[+\uFF0B]?[0-9\uFF10-\uFF19](?:[ \t\u00A0\u2000-\u200A\u202F\u205F\u3000\-\u2010-\u2015\u2212\uFE63\uFF0D.()\uFF08\uFF09]{0,2}[0-9\uFF10-\uFF19]){7,}/gu;
 const EXTENSIONS: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' };
 
 export type Photo = { url: string } | { tooLarge: true };
