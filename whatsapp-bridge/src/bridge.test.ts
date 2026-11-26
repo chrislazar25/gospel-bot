@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -24,7 +24,7 @@ function setup() {
   const uploaded: { path: string; size: number }[] = [];
   const comments: { issue: number; body: string }[] = [];
   const labelled: { issue: number; label: string }[] = [];
-  const faults = { create: false, get: new Set<number>(), reply: false, upload: false };
+  const faults = { create: false, createLost: false, get: new Set<number>(), reply: false, upload: false };
   let botId = 0;
   const wa: Whatsapp = {
     async react(key, emoji) { calls.push({ kind: 'react', key, value: emoji }); },
@@ -40,7 +40,12 @@ function setup() {
       created.push(issue);
       const number = 100 + created.length;
       issues.set(number, { number, state: 'open', stateReason: null, labels: issue.labels });
+      if (faults.createLost) throw new Error('timeout');
       return number;
+    },
+    async findByMarker(marker) {
+      const i = created.findIndex((c) => c.body.includes(marker));
+      return i < 0 ? undefined : 101 + i;
     },
     async get(n) {
       if (faults.get.has(n)) throw new Error('github_502');
@@ -231,6 +236,55 @@ test('when GitHub is down a report is not remembered, not reacted to, and a retr
   t.faults.create = false;
   await t.bridge.onMessage(dad('M1'));
   assert.equal(t.created.length, 1);
+});
+
+test('a report whose create response was lost adopts the existing issue when the message is redelivered', async () => {
+  const t = setup();
+  t.faults.createLost = true;
+  await t.bridge.onMessage(dad('M1'));
+  assert.equal(t.created.length, 1);
+  assert.equal(t.calls.length, 0);
+  t.faults.createLost = false;
+  await t.bridge.onMessage(dad('M1'));
+  assert.equal(t.created.length, 1);
+  assert.deepEqual(t.store.entries().map(([n, e]) => [n, e.key.id]), [[101, 'M1']]);
+  assert.deepEqual(t.calls.map((c) => [c.kind, c.value, c.key.id]), [['react', '👀', 'M1']]);
+});
+
+test('after a crash between creating the issue and saving it, the next poll adopts the issue', async () => {
+  const t = setup();
+  t.faults.createLost = true;
+  await t.bridge.onMessage(dad('M1'));
+  t.faults.createLost = false;
+  const again = t.restart();
+  await again.poll();
+  assert.equal(t.created.length, 1);
+  assert.deepEqual(openStore(t.home).entries().map(([n, e]) => [n, e.key.id]), [[101, 'M1']]);
+  assert.deepEqual(t.calls.map((c) => [c.kind, c.value, c.key.id]), [['react', '👀', 'M1']]);
+  await again.onMessage(dad('M1'));
+  assert.equal(t.created.length, 1);
+});
+
+test('a message whose create never reached GitHub is forgotten at the next poll and can be reported again', async () => {
+  const t = setup();
+  t.faults.create = true;
+  await t.bridge.onMessage(dad('M1'));
+  t.faults.create = false;
+  await t.bridge.poll();
+  assert.ok(t.logs.some((l) => l.event === 'pending_dropped'));
+  assert.equal(t.store.entries().length, 0);
+  await t.bridge.onMessage(dad('M1'));
+  assert.equal(t.created.length, 1);
+});
+
+test('a report written by an older bridge is not created again when its message is redelivered', async () => {
+  const t = setup();
+  writeFileSync(join(t.home, 'reports.json'), JSON.stringify({ 7: { key: dad('OLD').key, applied: 'triage', replies: ['BOT9'] } }));
+  const again = t.restart();
+  await again.onMessage(dad('OLD'));
+  await again.onMessage(quoting(dad('F1', 'more'), 'BOT9'));
+  assert.equal(t.created.length, 0);
+  assert.deepEqual(t.comments.map((c) => c.issue), [7]);
 });
 
 test('logs carry ids but never the report text or the sender', async () => {

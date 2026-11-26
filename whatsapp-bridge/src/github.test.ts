@@ -83,3 +83,14 @@ test('comment and addLabel post to the issue', async () => {
   assert.deepEqual(JSON.parse(String(calls[0]!.init.body)), { body: 'hello' });
   assert.deepEqual(JSON.parse(String(calls[1]!.init.body)), { labels: ['benny:triage-again'] });
 });
+
+test('findByMarker returns the recent report issue whose body carries the marker, never a pull request', async () => {
+  const { calls, request } = fake(200, [
+    { number: 9, body: 'x <!-- wa-message:M1 --> pr', pull_request: {} }, { number: 8, body: null },
+    { number: 7, body: 'text\n\n<!-- wa-message:M1 -->' }, { number: 6, body: '<!-- wa-message:M1 -->' },
+  ]);
+  const gh = createGithub(config, request);
+  assert.equal(await gh.findByMarker('<!-- wa-message:M1 -->'), 7);
+  assert.equal(await gh.findByMarker('<!-- wa-message:M2 -->'), undefined);
+  assert.equal(calls[0]!.url, 'https://api.github.com/repos/o/r/issues?labels=benny%3Areport&state=all&sort=created&direction=desc&per_page=50');
+});

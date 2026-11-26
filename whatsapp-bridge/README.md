@@ -12,6 +12,8 @@ When someone quote-replies to a report or to one of the bridge's replies, the me
 
 Every poll it reads each open report's issue and derives a state from its labels. When the state changes, it reacts to the original message with the state's emoji. Some states also get a short reply that quotes the message. A closed issue with state reason `completed` counts as merged. Any other closed issue counts as closed. The bridge replies once and then stops tracking it. A stored report from a group other than `REPORT_GROUP_JID`, left over from a test group, is dropped without sending anything to that group, and the bridge logs `stale_group`.
 
+`reports.json` also keeps a ledger of the last 1000 WhatsApp message ids the bridge has handled, so a redelivered message never becomes a second issue. Before creating an issue the bridge records the message as pending. If the create response is lost or the bridge crashes before saving the issue, the next poll finds the issue by its `<!-- wa-message:... -->` marker among the 50 newest `benny:report` issues and adopts it. If no issue carries the marker, the bridge forgets the message so a redelivery can report it again. A `reports.json` written before the ledger existed is read and rewritten in the new shape.
+
 States, labels, emojis and replies live in one table in `src/states.ts`. Every bot reply starts with "🤖 ".
 
 Phone-like numbers are removed from issue titles, bodies and comments, including numbers written with non-breaking spaces, Unicode dashes or fullwidth digits. The sender's WhatsApp ID stays in `$BRIDGE_HOME/reports.json` and never goes to GitHub.
@@ -21,7 +23,7 @@ Phone-like numbers are removed from issue titles, bodies and comments, including
 - `GITHUB_TOKEN` is required. It needs permission to create and read issues and to write contents on the `benny-media` branch.
 - `GITHUB_REPO` defaults to `chrislazar25/gospel-bot`.
 - `REPORT_GROUP_JID` is required to run. Find it with `--list-groups`.
-- `BRIDGE_HOME` defaults to `~/.gospel-bridge`. It holds the WhatsApp session in `auth/`, the report map in `reports.json`, and the single-instance lock in `bridge.lock`.
+- `BRIDGE_HOME` defaults to `~/.gospel-bridge`. It holds the WhatsApp session in `auth/`, the report map and message ledger in `reports.json`, and the single-instance lock in `bridge.lock`.
 - `PAIR_PHONE` is optional. Digits only, with country code. When set, linking uses a pairing code instead of a QR.
 - `POLL_SECONDS` defaults to 60. It sets the poll interval and the heartbeat interval.
 

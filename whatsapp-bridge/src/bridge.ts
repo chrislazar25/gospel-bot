@@ -1,6 +1,6 @@
 import type { Github } from './github.js';
 import { type Log, why } from './log.js';
-import { followupBody, newIssue, type Photo, photoPath } from './report.js';
+import { followupBody, messageMarker, newIssue, type Photo, photoPath } from './report.js';
 import { BOT_PREFIX, RETRIAGE_LABEL, stateOf, TABLE } from './states.js';
 import type { Key, Store } from './store.js';
 
@@ -46,9 +46,31 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
     }
   };
 
+  const track = async (key: Key, issue: number) => {
+    store.set(issue, { key, applied: 'new', replies: [] });
+    store.setMessage(key.id, { status: 'done', issue, at: new Date().toISOString() });
+    log('report_created', { issue, msg: key.id });
+    await wa.react(key, TABLE.new.emoji).catch((e) => log('react_failed', { issue, error: why(e) }));
+  };
+
+  // A pending message may already have an issue: the create succeeded but its response was lost, or the bridge crashed
+  // before saving it. Poll runs between messages, so by then GitHub's answer is final: adopt the issue or forget the message.
+  const settle = async (id: string, key: Key) => {
+    try {
+      const issue = await github.findByMarker(messageMarker(id));
+      if (issue) return await track(key, issue);
+      store.deleteMessage(id);
+      log('pending_dropped', { msg: id });
+    } catch (e) {
+      log('poll_failed', { msg: id, error: why(e) });
+    }
+  };
+
   const handle = async ({ key, text, quotedId, attachment }: Incoming) => {
     const body = text.trim();
-    if (key.remoteJid !== groupJid || (!body && !attachment) || handled.has(key.id) || body.startsWith(BOT_PREFIX) || store.hasMessage(key.id)) return;
+    if (key.remoteJid !== groupJid || (!body && !attachment) || body.startsWith(BOT_PREFIX)) return;
+    const seen = store.message(key.id);
+    if (seen?.status === 'done' || handled.has(key.id)) return;
     if (!body && attachment?.kind === 'unsupported') {
       handled.add(key.id);
       log('unsupported_media', { msg: key.id });
@@ -58,17 +80,16 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
     }
     const thread = quotedId ? store.threadOf(quotedId) : undefined;
     if (thread) return followup(thread[0], key, body, attachment);
-    let issue: number;
+    let issue: number | undefined;
     try {
-      const photo = attachment?.kind === 'image' ? await upload(attachment, key.id) : undefined;
-      issue = await github.create(newIssue(body, key.id, photo));
+      store.setMessage(key.id, { status: 'pending', key, at: new Date().toISOString() });
+      if (seen) issue = await github.findByMarker(messageMarker(key.id));
+      issue ??= await github.create(newIssue(body, key.id, attachment?.kind === 'image' ? await upload(attachment, key.id) : undefined));
     } catch (e) {
       log('issue_create_failed', { msg: key.id, error: why(e) });
       return;
     }
-    store.set(issue, { key, applied: 'new', replies: [] });
-    log('report_created', { issue, msg: key.id });
-    await wa.react(key, TABLE.new.emoji).catch((e) => log('react_failed', { issue, error: why(e) }));
+    await track(key, issue);
   };
 
   const check = async (issue: number) => {
@@ -95,6 +116,9 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
 
   return {
     onMessage: (m: Incoming) => serial(() => handle(m)),
-    poll: () => serial(async () => { for (const [issue] of store.entries()) await check(issue); }),
+    poll: () => serial(async () => {
+      for (const [id, m] of store.messages()) if (m.status === 'pending') await settle(id, m.key);
+      for (const [issue] of store.entries()) await check(issue);
+    }),
   };
 }
