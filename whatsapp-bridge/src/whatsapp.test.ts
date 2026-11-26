@@ -9,17 +9,18 @@ const msg = (message: NonNullable<WAMessage['message']>): WAMessage => ({ key, m
 test('plain, extended, image and video text all become reports', () => {
   for (const m of [
     { conversation: 'a' }, { extendedTextMessage: { text: 'a' } }, { imageMessage: { caption: 'a' } }, { videoMessage: { caption: 'a' } },
-  ]) assert.deepEqual(toIncoming(msg(m)), { key, text: 'a' });
+  ]) assert.equal(toIncoming(msg(m))?.text, 'a');
+  assert.equal(toIncoming(msg({ conversation: 'a' }))?.attachment, null);
 });
 
 test('disappearing-message wrappers are unwrapped', () => {
   assert.equal(toIncoming(msg({ ephemeralMessage: { message: { conversation: 'a' } } }))?.text, 'a');
 });
 
-test('reactions, protocol messages, bare media and empty text are skipped', () => {
+test('reactions, protocol messages and empty text are skipped', () => {
   assert.equal(toIncoming(msg({ reactionMessage: { text: '👍', key } })), undefined);
   assert.equal(toIncoming(msg({ protocolMessage: { type: 0 } })), undefined);
-  assert.equal(toIncoming(msg({ imageMessage: {} })), undefined);
+  assert.equal(toIncoming(msg({ audioMessage: {} }))?.attachment?.kind, 'unsupported');
   assert.equal(toIncoming(msg({ conversation: '' })), undefined);
   assert.equal(toIncoming({ key }), undefined);
 });
@@ -27,4 +28,18 @@ test('reactions, protocol messages, bare media and empty text are skipped', () =
 test('the key keeps the sender only when there is one', () => {
   const { participant: _, ...direct } = key;
   assert.deepEqual(toIncoming({ key: { ...direct, fromMe: true }, message: { conversation: 'a' } })?.key, { remoteJid: key.remoteJid, id: 'M1', fromMe: true });
+});
+
+test('an image becomes an image attachment with its caption as text', () => {
+  const i = toIncoming(msg({ imageMessage: { caption: 'look', mimetype: 'image/png' } }))!;
+  assert.equal(i.text, 'look');
+  assert.ok(i.attachment?.kind === 'image' && i.attachment.mimetype === 'image/png');
+  const bare = toIncoming(msg({ imageMessage: {} }))!;
+  assert.equal(bare.text, '');
+  assert.ok(bare.attachment?.kind === 'image' && bare.attachment.mimetype === 'image/jpeg');
+});
+
+test('voice notes, videos, documents and stickers are unsupported attachments', () => {
+  for (const m of [{ audioMessage: {} }, { videoMessage: {} }, { documentMessage: {} }, { stickerMessage: {} }])
+    assert.deepEqual(toIncoming(msg(m)), { key, text: '', attachment: { kind: 'unsupported' } });
 });

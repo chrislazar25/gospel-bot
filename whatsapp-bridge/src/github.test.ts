@@ -51,3 +51,23 @@ test('an http error is rejected without leaking the token', async () => {
     return true;
   });
 });
+
+test('upload puts the file on the media branch and returns its raw url', async () => {
+  const { calls, request } = fake(201, { content: {} });
+  const url = await createGithub(config, request).upload('reports/M1.jpg', Buffer.from('abc'));
+  assert.equal(url, 'https://raw.githubusercontent.com/o/r/benny-media/reports/M1.jpg');
+  assert.equal(calls[0]!.url, 'https://api.github.com/repos/o/r/contents/reports/M1.jpg');
+  assert.equal(calls[0]!.init.method, 'PUT');
+  const body = JSON.parse(String(calls[0]!.init.body));
+  assert.equal(body.branch, 'benny-media');
+  assert.equal(Buffer.from(body.content, 'base64').toString(), 'abc');
+});
+
+const byMethod = (statuses: Record<string, number>) => (async (_url: string, init: RequestInit) =>
+  new Response('{}', { status: statuses[init.method!]! })) as unknown as typeof fetch;
+
+test('upload accepts 422 only when the file is already on the media branch', async () => {
+  assert.match(await createGithub(config, byMethod({ PUT: 422, GET: 200 })).upload('reports/M1.jpg', Buffer.from('a')), /benny-media\/reports\/M1\.jpg$/);
+  await assert.rejects(createGithub(config, byMethod({ PUT: 422, GET: 404 })).upload('reports/M1.jpg', Buffer.from('a')), /github_404/);
+  await assert.rejects(createGithub(config, byMethod({ PUT: 404 })).upload('reports/M1.jpg', Buffer.from('a')), /github_404/);
+});

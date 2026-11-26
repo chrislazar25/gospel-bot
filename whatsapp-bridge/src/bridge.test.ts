@@ -3,21 +3,25 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { createBridge, type Incoming, type Whatsapp } from './bridge.js';
-import type { Github } from './github.js';
+import { createBridge, type Attachment, type Incoming, type Whatsapp } from './bridge.js';
+import { createGithub, type Github } from './github.js';
 import type { Issue } from './states.js';
 import { openStore, type Key } from './store.js';
 
 const GROUP = '120363@g.us';
-const dad = (id: string, text = 'The reading is wrong today', remoteJid = GROUP): Incoming => ({
-  key: { remoteJid, id, participant: '15551230000@s.whatsapp.net', fromMe: false }, text,
+const dad = (id: string, text = 'The reading is wrong today', remoteJid = GROUP, attachment: Attachment | null = null): Incoming => ({
+  key: { remoteJid, id, participant: '15551230000@s.whatsapp.net', fromMe: false }, text, attachment,
 });
+const photo = (id: string, caption = '', bytes = Buffer.from('jpeg-bytes')) =>
+  dad(id, caption, GROUP, { kind: 'image', mimetype: 'image/jpeg', download: async () => bytes });
+const voiceNote = (id: string) => dad(id, '', GROUP, { kind: 'unsupported' });
 
 function setup() {
   const calls: { kind: 'react' | 'reply'; key: Key; value: string }[] = [];
   const created: { title: string; body: string; labels: string[] }[] = [];
   const issues = new Map<number, Issue>();
-  const faults = { create: false, get: new Set<number>(), reply: false };
+  const uploaded: { path: string; size: number }[] = [];
+  const faults = { create: false, get: new Set<number>(), reply: false, upload: false };
   let botId = 0;
   const wa: Whatsapp = {
     async react(key, emoji) { calls.push({ kind: 'react', key, value: emoji }); },
@@ -39,12 +43,17 @@ function setup() {
       if (faults.get.has(n)) throw new Error('github_502');
       return issues.get(n)!;
     },
+    async upload(path, bytes) {
+      if (faults.upload) throw new Error('github_500');
+      uploaded.push({ path, size: bytes.length });
+      return `https://raw.example/${path}`;
+    },
   };
   const store = openStore(join(mkdtempSync(join(tmpdir(), 'bridge-')), 'home'));
   const logs: { event: string; fields: object | undefined }[] = [];
   const bridge = createBridge({ wa, github, store, groupJid: GROUP, log: (event, fields) => logs.push({ event, fields }) });
   const label = (n: number, ...labels: string[]) => { issues.get(n)!.labels = ['benny:report', ...labels]; };
-  return { bridge, calls, created, issues, faults, store, logs, label };
+  return { bridge, calls, created, uploaded, issues, faults, store, logs, label };
 }
 
 test('a new report creates one labelled issue, reacts with eyes and is remembered', async () => {
@@ -78,7 +87,7 @@ test('messages from other chats and empty messages are ignored', async () => {
 
 test("the owner's own manual message is accepted", async () => {
   const t = setup();
-  const own: Incoming = { key: { remoteJid: GROUP, id: 'MINE', fromMe: true }, text: 'testing the bridge' };
+  const own: Incoming = { key: { remoteJid: GROUP, id: 'MINE', fromMe: true }, text: 'testing the bridge', attachment: null };
   await t.bridge.onMessage(own);
   assert.equal(t.created.length, 1);
 });
@@ -90,8 +99,8 @@ test('messages the bridge sent itself are never turned into reports', async () =
   await t.bridge.poll();
   const reply = t.calls.find((c) => c.kind === 'reply')!;
   assert.ok(reply);
-  await t.bridge.onMessage({ key: { remoteJid: GROUP, id: 'BOT1', fromMe: true }, text: 'anything' });
-  await t.bridge.onMessage({ key: { remoteJid: GROUP, id: 'RACE', fromMe: true }, text: reply.value });
+  await t.bridge.onMessage({ key: { remoteJid: GROUP, id: 'BOT1', fromMe: true }, text: 'anything', attachment: null });
+  await t.bridge.onMessage({ key: { remoteJid: GROUP, id: 'RACE', fromMe: true }, text: reply.value, attachment: null });
   assert.equal(t.created.length, 1);
 });
 
@@ -211,4 +220,82 @@ test('logs carry ids but never the report text or the sender', async () => {
   const dump = JSON.stringify(t.logs);
   assert.ok(dump.includes('report_created'));
   assert.ok(!dump.includes('secret wording') && !dump.includes('15551230000'));
+});
+
+test('a photo with a caption uploads once and the issue embeds the raw url', async () => {
+  const t = setup();
+  await t.bridge.onMessage(photo('M1', 'The picture is cut off'));
+  assert.deepEqual(t.uploaded, [{ path: 'reports/M1.jpg', size: 10 }]);
+  assert.equal(t.created.length, 1);
+  assert.ok(t.created[0]!.title.endsWith('The picture is cut off'));
+  assert.ok(t.created[0]!.body.includes('The picture is cut off'));
+  assert.ok(t.created[0]!.body.includes('![photo](https://raw.example/reports/M1.jpg)'));
+  assert.deepEqual(t.calls.map((c) => [c.kind, c.value]), [['react', '👀']]);
+});
+
+test('a photo without a caption becomes a report titled photo', async () => {
+  const t = setup();
+  await t.bridge.onMessage(photo('M1'));
+  assert.equal(t.created[0]!.title, 'WhatsApp report: photo');
+  assert.ok(t.created[0]!.body.startsWith('![photo]('));
+  assert.equal(t.store.entries().length, 1);
+});
+
+test('a photo over 10 MB is not uploaded and the report says so', async () => {
+  const t = setup();
+  await t.bridge.onMessage(photo('M1', 'big one', Buffer.alloc(10 * 1024 * 1024 + 1)));
+  assert.equal(t.uploaded.length, 0);
+  assert.ok(t.created[0]!.body.includes('(photo too large to attach)'));
+  assert.ok(!t.created[0]!.body.includes('!['));
+});
+
+test('a photo whose file already exists on GitHub still creates the issue', async () => {
+  const created: unknown[] = [];
+  const request = (async (url: string, init: RequestInit) => {
+    if (init.method === 'PUT') return new Response('{"message":"sha wasn\'t supplied"}', { status: 422 });
+    if (init.method === 'GET') return new Response('{}', { status: 200 });
+    created.push(JSON.parse(String(init.body)));
+    return new Response('{"number":7}', { status: 201 });
+  }) as unknown as typeof fetch;
+  const t = setup();
+  const bridge = createBridge({
+    wa: { react: async () => {}, reply: async () => 'BOT1' }, github: createGithub({ token: 't', repo: 'o/r' }, request),
+    store: t.store, groupJid: GROUP, log: () => {},
+  });
+  await bridge.onMessage(photo('M1', 'again'));
+  assert.equal(created.length, 1);
+  assert.ok((created[0] as { body: string }).body.includes('![photo](https://raw.githubusercontent.com/o/r/benny-media/reports/M1.jpg)'));
+  assert.deepEqual(t.store.entries().map(([n]) => n), [7]);
+});
+
+test('a failed upload creates no issue and no reaction, and a retry can still succeed', async () => {
+  const t = setup();
+  t.faults.upload = true;
+  await t.bridge.onMessage(photo('M1', 'hello'));
+  assert.equal(t.created.length, 0);
+  assert.equal(t.calls.length, 0);
+  assert.equal(t.store.entries().length, 0);
+  assert.ok(t.logs.some((l) => l.event === 'issue_create_failed'));
+  t.faults.upload = false;
+  await t.bridge.onMessage(photo('M1', 'hello'));
+  assert.equal(t.created.length, 1);
+});
+
+test('a voice note or video without text gets a thinking face and a typed-answer request, and no issue', async () => {
+  const t = setup();
+  await t.bridge.onMessage(voiceNote('V1'));
+  await t.bridge.onMessage(voiceNote('V1'));
+  assert.equal(t.created.length, 0);
+  assert.equal(t.store.entries().length, 0);
+  assert.deepEqual(t.calls.map((c) => [c.kind, c.value, c.key.id]), [
+    ['react', '🤔', 'V1'],
+    ['reply', "🤖 I can't open voice notes or videos yet. Can you type out what happened?", 'V1'],
+  ]);
+});
+
+test('unsupported media that carries text is an ordinary text report', async () => {
+  const t = setup();
+  await t.bridge.onMessage(dad('V2', 'the video shows a wrong verse', GROUP, { kind: 'unsupported' }));
+  assert.equal(t.created.length, 1);
+  assert.deepEqual(t.calls.map((c) => [c.kind, c.value]), [['react', '👀']]);
 });

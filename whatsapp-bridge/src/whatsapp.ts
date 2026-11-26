@@ -1,8 +1,8 @@
 import { join } from 'node:path';
-import makeWASocket, { Browsers, DisconnectReason, generateMessageIDV2, normalizeMessageContent, useMultiFileAuthState, type WAMessage } from 'baileys';
+import makeWASocket, { Browsers, DisconnectReason, downloadMediaMessage, generateMessageIDV2, normalizeMessageContent, useMultiFileAuthState, type WAMessage } from 'baileys';
 import qrcode from 'qrcode-terminal';
 import { z } from 'zod';
-import type { Incoming, Whatsapp } from './bridge.js';
+import type { Attachment, Incoming, Whatsapp } from './bridge.js';
 import type { Log } from './log.js';
 import { why } from './log.js';
 import { ensurePrivateDir, type Key } from './store.js';
@@ -21,9 +21,13 @@ const statusOf = (e: unknown) => z.object({ output: z.object({ statusCode: z.num
 export function toIncoming(m: WAMessage): Incoming | undefined {
   const { remoteJid, id, participant, fromMe } = m.key;
   const c = normalizeMessageContent(m.message);
-  const text = c?.conversation || c?.extendedTextMessage?.text || c?.imageMessage?.caption || c?.videoMessage?.caption;
-  if (!remoteJid || !id || !text) return undefined;
-  return { key: { remoteJid, id, ...(participant ? { participant } : {}), fromMe: !!fromMe }, text };
+  const image = c?.imageMessage;
+  const text = c?.conversation || c?.extendedTextMessage?.text || image?.caption || c?.videoMessage?.caption || '';
+  const attachment: Attachment | null = image
+    ? { kind: 'image', mimetype: image.mimetype || 'image/jpeg', download: () => downloadMediaMessage(m, 'buffer', {}) }
+    : c?.audioMessage || c?.videoMessage || c?.documentMessage || c?.stickerMessage ? { kind: 'unsupported' } : null;
+  if (!remoteJid || !id || (!text && !attachment)) return undefined;
+  return { key: { remoteJid, id, ...(participant ? { participant } : {}), fromMe: !!fromMe }, text, attachment };
 }
 
 const waKey = (k: Key) => ({ remoteJid: k.remoteJid, id: k.id, fromMe: k.fromMe, ...(k.participant ? { participant: k.participant } : {}) });

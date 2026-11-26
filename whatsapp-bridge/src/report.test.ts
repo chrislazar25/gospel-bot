@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { issueBody, issueTitle, newIssue } from './report.js';
+import { issueBody, issueTitle, newIssue, photoPath } from './report.js';
 
 test('phone-like numbers are removed from the body', () => {
   const body = issueBody('Call me on +1 555-123-4567 or 0771234567, also 12345678 and (555) 123-4567', 'ABC123');
@@ -36,4 +36,21 @@ test('@mentions in the report cannot notify GitHub users', () => {
 
 test('a new issue is labelled report and new', () => {
   assert.deepEqual(newIssue('hi', 'M1').labels, ['benny:report', 'benny:new']);
+});
+
+test('a photo is embedded above the footer, or noted as too large', () => {
+  assert.match(issueBody('see this', 'M1', { url: 'https://x/y.jpg' }), /^see this\n\n!\[photo\]\(https:\/\/x\/y\.jpg\)\n\nReported in/);
+  assert.match(issueBody('', 'M1', { tooLarge: true }), /^\(photo too large to attach\)\n\nReported in/);
+  assert.equal(newIssue('', 'M1', { url: 'u' }).title, 'WhatsApp report: photo');
+});
+
+test('a caption is scrubbed even with a photo', () => {
+  const { body } = newIssue('call 555 123 4567 @octocat', 'M1', { url: 'u' });
+  assert.ok(!body.includes('555') && !/@[A-Za-z]/.test(body), body);
+});
+
+test('the photo path is built from a sanitized message id and a known extension', () => {
+  assert.equal(photoPath('3EB0/../AB', 'image/png'), 'reports/3EB0AB.png');
+  assert.equal(photoPath('M1', 'image/jpeg'), 'reports/M1.jpg');
+  assert.equal(photoPath('M1', 'application/x-evil'), 'reports/M1.jpg');
 });
