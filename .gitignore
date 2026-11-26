@@ -11,3 +11,4 @@ cloud-smoke-local-evidence/
 content/schedule.json
 .pit/
 whatsapp-bridge/dist/
+.claude/worktrees/
