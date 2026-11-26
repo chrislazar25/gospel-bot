@@ -28,6 +28,12 @@ test('the title is one line, 60 characters of text, and number free', () => {
   assert.equal(issueTitle('call 555 123 4567 now'), 'WhatsApp report: call [number removed] now');
 });
 
+test('@mentions in the report cannot notify GitHub users', () => {
+  const body = issueBody('ask @chrislazar25 and @octocat', 'M1');
+  assert.ok(!/@[A-Za-z]/.test(body), body);
+  assert.match(body, /ask @\u200bchrislazar25/);
+});
+
 test('a new issue is labelled report and new', () => {
   assert.deepEqual(newIssue('hi', 'M1').labels, ['benny:report', 'benny:new']);
 });

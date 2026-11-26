@@ -2,7 +2,7 @@ import { REPORT_LABEL, TABLE } from './states.js';
 
 const PHONE_LIKE = /\+?\d(?:[ \-.()]{0,2}\d){7,}/g;
 
-export const scrub = (text: string) => text.replace(PHONE_LIKE, '[number removed]');
+export const scrub = (text: string) => text.replace(PHONE_LIKE, '[number removed]').replace(/@/g, '@\u200b');
 
 export function issueTitle(text: string): string {
   return 'WhatsApp report: ' + scrub(text).replace(/\s+/g, ' ').trim().slice(0, 60).trimEnd();
