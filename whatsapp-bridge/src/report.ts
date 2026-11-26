@@ -21,6 +21,9 @@ export function issueBody(text: string, messageId: string, photo?: Photo): strin
   ].filter(Boolean).join('\n\n');
 }
 
+export const followupBody = (text: string, photo?: Photo) =>
+  [scrub(text).trim(), photo && photoMarkdown(photo), '<!-- wa-followup -->'].filter(Boolean).join('\n\n');
+
 export const newIssue = (text: string, messageId: string, photo?: Photo) => ({
   title: issueTitle(text), body: issueBody(text, messageId, photo), labels: [REPORT_LABEL, TABLE.new.label!],
 });

@@ -10,8 +10,9 @@ import { openStore, type Key } from './store.js';
 
 const GROUP = '120363@g.us';
 const dad = (id: string, text = 'The reading is wrong today', remoteJid = GROUP, attachment: Attachment | null = null): Incoming => ({
-  key: { remoteJid, id, participant: '15551230000@s.whatsapp.net', fromMe: false }, text, attachment,
+  key: { remoteJid, id, participant: '15551230000@s.whatsapp.net', fromMe: false }, text, quotedId: null, attachment,
 });
+const quoting = (m: Incoming, quotedId: string): Incoming => ({ ...m, quotedId });
 const photo = (id: string, caption = '', bytes = Buffer.from('jpeg-bytes')) =>
   dad(id, caption, GROUP, { kind: 'image', mimetype: 'image/jpeg', download: async () => bytes });
 const voiceNote = (id: string) => dad(id, '', GROUP, { kind: 'unsupported' });
@@ -21,6 +22,8 @@ function setup() {
   const created: { title: string; body: string; labels: string[] }[] = [];
   const issues = new Map<number, Issue>();
   const uploaded: { path: string; size: number }[] = [];
+  const comments: { issue: number; body: string }[] = [];
+  const labelled: { issue: number; label: string }[] = [];
   const faults = { create: false, get: new Set<number>(), reply: false, upload: false };
   let botId = 0;
   const wa: Whatsapp = {
@@ -43,17 +46,22 @@ function setup() {
       if (faults.get.has(n)) throw new Error('github_502');
       return issues.get(n)!;
     },
+    async comment(issue, body) { comments.push({ issue, body }); },
+    async addLabel(issue, label) { labelled.push({ issue, label }); },
     async upload(path, bytes) {
       if (faults.upload) throw new Error('github_500');
       uploaded.push({ path, size: bytes.length });
       return `https://raw.example/${path}`;
     },
   };
-  const store = openStore(join(mkdtempSync(join(tmpdir(), 'bridge-')), 'home'));
+  const home = join(mkdtempSync(join(tmpdir(), 'bridge-')), 'home');
+  const store = openStore(home);
   const logs: { event: string; fields: object | undefined }[] = [];
-  const bridge = createBridge({ wa, github, store, groupJid: GROUP, log: (event, fields) => logs.push({ event, fields }) });
+  const log = (event: string, fields?: object) => logs.push({ event, fields });
+  const bridge = createBridge({ wa, github, store, groupJid: GROUP, log });
+  const restart = () => createBridge({ wa, github, store: openStore(home), groupJid: GROUP, log });
   const label = (n: number, ...labels: string[]) => { issues.get(n)!.labels = ['benny:report', ...labels]; };
-  return { bridge, calls, created, uploaded, issues, faults, store, logs, label };
+  return { bridge, restart, home, calls, created, uploaded, comments, labelled, issues, faults, store, logs, label };
 }
 
 test('a new report creates one labelled issue, reacts with eyes and is remembered', async () => {
@@ -87,7 +95,7 @@ test('messages from other chats and empty messages are ignored', async () => {
 
 test("the owner's own manual message is accepted", async () => {
   const t = setup();
-  const own: Incoming = { key: { remoteJid: GROUP, id: 'MINE', fromMe: true }, text: 'testing the bridge', attachment: null };
+  const own: Incoming = { key: { remoteJid: GROUP, id: 'MINE', fromMe: true }, text: 'testing the bridge', quotedId: null, attachment: null };
   await t.bridge.onMessage(own);
   assert.equal(t.created.length, 1);
 });
@@ -99,9 +107,9 @@ test('messages the bridge sent itself are never turned into reports', async () =
   await t.bridge.poll();
   const reply = t.calls.find((c) => c.kind === 'reply')!;
   assert.ok(reply);
-  await t.bridge.onMessage({ key: { remoteJid: GROUP, id: 'BOT1', fromMe: true }, text: 'anything', attachment: null });
-  await t.bridge.onMessage({ key: { remoteJid: GROUP, id: 'RACE', fromMe: true }, text: reply.value, attachment: null });
+  await t.bridge.onMessage({ key: { remoteJid: GROUP, id: 'BOT1', fromMe: true }, text: reply.value, quotedId: 'M1', attachment: null });
   assert.equal(t.created.length, 1);
+  assert.equal(t.comments.length, 0);
 });
 
 test('a status change reacts once, replies when the state has a reply, and quotes the original message', async () => {
@@ -298,4 +306,97 @@ test('unsupported media that carries text is an ordinary text report', async () 
   await t.bridge.onMessage(dad('V2', 'the video shows a wrong verse', GROUP, { kind: 'unsupported' }));
   assert.equal(t.created.length, 1);
   assert.deepEqual(t.calls.map((c) => [c.kind, c.value]), [['react', '👀']]);
+});
+
+const askedForMore = async (t: ReturnType<typeof setup>) => {
+  await t.bridge.onMessage(dad('M1'));
+  await t.bridge.onMessage(dad('M2', 'A different problem'));
+  t.label(101, 'benny:no-repro');
+  t.label(102, 'benny:triage');
+  await t.bridge.poll();
+  t.calls.length = 0;
+};
+
+test('a quote-reply to the bot question becomes a comment on that issue and asks for re-triage', async () => {
+  const t = setup();
+  await askedForMore(t);
+  await t.bridge.onMessage(quoting(dad('F1', 'It happened on my phone, call 555 123 4567'), 'BOT1'));
+  assert.equal(t.created.length, 2);
+  assert.equal(t.comments.length, 1);
+  assert.equal(t.comments[0]!.issue, 101);
+  assert.ok(t.comments[0]!.body.startsWith('It happened on my phone'));
+  assert.ok(!t.comments[0]!.body.includes('555'));
+  assert.ok(t.comments[0]!.body.endsWith('\n\n<!-- wa-followup -->'));
+  assert.deepEqual(t.calls.map((c) => [c.kind, c.value, c.key.id]), [['react', '👀', 'F1']]);
+  assert.deepEqual(t.labelled, [{ issue: 101, label: 'benny:triage-again' }]);
+  assert.ok(t.logs.some((l) => l.event === 'followup_added'));
+  assert.equal(t.store.entries().length, 2);
+});
+
+test('a quote-reply to the original report comments too, and re-triages only a no-repro issue', async () => {
+  const t = setup();
+  await askedForMore(t);
+  await t.bridge.onMessage(quoting(dad('F1', 'more detail'), 'M2'));
+  assert.deepEqual(t.comments.map((c) => c.issue), [102]);
+  assert.deepEqual(t.labelled, []);
+  await t.bridge.onMessage(quoting(dad('F2', 'and more'), 'M1'));
+  assert.deepEqual(t.comments.map((c) => c.issue), [102, 101]);
+  assert.deepEqual(t.labelled, [{ issue: 101, label: 'benny:triage-again' }]);
+});
+
+test('a quote of an unrelated message is still a new report', async () => {
+  const t = setup();
+  await askedForMore(t);
+  await t.bridge.onMessage(quoting(dad('M3', 'something else'), 'SOMEONE_ELSES'));
+  assert.equal(t.created.length, 3);
+  assert.equal(t.comments.length, 0);
+});
+
+test('a follow-up photo is uploaded and embedded in the comment', async () => {
+  const t = setup();
+  await askedForMore(t);
+  await t.bridge.onMessage(quoting(photo('F1', 'here it is'), 'BOT1'));
+  assert.deepEqual(t.uploaded.map((u) => u.path), ['reports/F1.jpg']);
+  assert.ok(t.comments[0]!.body.includes('![photo](https://raw.example/reports/F1.jpg)'));
+  assert.equal(t.created.length, 2);
+});
+
+test('a redelivered follow-up is commented once', async () => {
+  const t = setup();
+  await askedForMore(t);
+  await t.bridge.onMessage(quoting(dad('F1', 'detail'), 'BOT1'));
+  await t.bridge.onMessage(quoting(dad('F1', 'detail'), 'BOT1'));
+  assert.equal(t.comments.length, 1);
+});
+
+test('when the comment fails nothing is reacted to and the report is untouched', async () => {
+  const t = setup();
+  await askedForMore(t);
+  t.faults.upload = true;
+  await t.bridge.onMessage(quoting(photo('F1', 'here'), 'BOT1'));
+  assert.equal(t.comments.length, 0);
+  assert.equal(t.calls.length, 0);
+  assert.equal(t.created.length, 2);
+  assert.ok(t.logs.some((l) => l.event === 'followup_failed'));
+});
+
+test('after a restart a quote-reply to an earlier bot question still lands on its issue', async () => {
+  const t = setup();
+  await askedForMore(t);
+  const again = t.restart();
+  await again.onMessage(quoting(dad('F1', 'after restart'), 'BOT1'));
+  await again.onMessage(quoting(dad('F2', 'quoting the report'), 'M2'));
+  assert.deepEqual(t.comments.map((c) => c.issue), [101, 102]);
+  assert.equal(t.created.length, 2);
+  assert.deepEqual(t.labelled, [{ issue: 101, label: 'benny:triage-again' }]);
+});
+
+test('a status reply keeps the earlier reply ids so every bot question stays quotable', async () => {
+  const t = setup();
+  await t.bridge.onMessage(dad('M1'));
+  t.label(101, 'benny:no-repro');
+  await t.bridge.poll();
+  t.label(101, 'benny:blocked');
+  await t.bridge.poll();
+  assert.deepEqual(t.store.entries()[0]![1].replies, ['BOT1', 'BOT2']);
 });

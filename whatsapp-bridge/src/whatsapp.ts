@@ -27,7 +27,8 @@ export function toIncoming(m: WAMessage): Incoming | undefined {
     ? { kind: 'image', mimetype: image.mimetype || 'image/jpeg', download: () => downloadMediaMessage(m, 'buffer', {}) }
     : c?.audioMessage || c?.videoMessage || c?.documentMessage || c?.stickerMessage ? { kind: 'unsupported' } : null;
   if (!remoteJid || !id || (!text && !attachment)) return undefined;
-  return { key: { remoteJid, id, ...(participant ? { participant } : {}), fromMe: !!fromMe }, text, attachment };
+  const quotedId = c?.extendedTextMessage?.contextInfo?.stanzaId || image?.contextInfo?.stanzaId || null;
+  return { key: { remoteJid, id, ...(participant ? { participant } : {}), fromMe: !!fromMe }, text, quotedId, attachment };
 }
 
 const waKey = (k: Key) => ({ remoteJid: k.remoteJid, id: k.id, fromMe: k.fromMe, ...(k.participant ? { participant: k.participant } : {}) });

@@ -20,6 +20,8 @@ export type Github = {
   create(issue: { title: string; body: string; labels: string[] }): Promise<number>;
   get(number: number): Promise<Issue>;
   upload(path: string, bytes: Buffer): Promise<string>;
+  comment(issue: number, body: string): Promise<void>;
+  addLabel(issue: number, label: string): Promise<void>;
 };
 
 export function createGithub(config: { token: string; repo: string }, request: typeof fetch = fetch): Github {
@@ -40,6 +42,8 @@ export function createGithub(config: { token: string; repo: string }, request: t
   return {
     async create(issue) { return createdSchema.parse(await call('POST', '/issues', issue)).number; },
     async get(number) { return issueSchema.parse(await call('GET', `/issues/${number}`)); },
+    async comment(issue, body) { await call('POST', `/issues/${issue}/comments`, { body }); },
+    async addLabel(issue, label) { await call('POST', `/issues/${issue}/labels`, { labels: [label] }); },
     async upload(path, bytes) {
       try { await call('PUT', `/contents/${path}`, { message: 'Add WhatsApp photo', content: bytes.toString('base64'), branch: MEDIA_BRANCH }); }
       catch (e) {

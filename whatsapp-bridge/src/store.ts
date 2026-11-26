@@ -7,13 +7,14 @@ export const keySchema = z.object({
   remoteJid: z.string().min(1), id: z.string().min(1), participant: z.string().min(1).optional(), fromMe: z.boolean(),
 });
 export type Key = z.infer<typeof keySchema>;
-const entrySchema = z.object({ key: keySchema, applied: z.enum(STATES) });
+const entrySchema = z.object({ key: keySchema, applied: z.enum(STATES), replies: z.array(z.string()).default([]) });
 export type Entry = z.infer<typeof entrySchema>;
 const fileSchema = z.record(z.string().regex(/^\d+$/), entrySchema);
 
 export type Store = {
   entries(): [number, Entry][];
   hasMessage(id: string): boolean;
+  threadOf(messageId: string): [number, Entry] | undefined;
   set(issue: number, entry: Entry): void;
   delete(issue: number): void;
 };
@@ -35,6 +36,7 @@ export function openStore(home: string): Store {
   return {
     entries: () => Object.entries(data).map(([n, e]) => [Number(n), e]),
     hasMessage: (id) => Object.values(data).some((e) => e.key.id === id),
+    threadOf: (id) => Object.entries(data).map(([n, e]): [number, Entry] => [Number(n), e]).find(([, e]) => e.key.id === id || e.replies.includes(id)),
     set(issue, entry) { data[String(issue)] = entry; flush(); },
     delete(issue) { delete data[String(issue)]; flush(); },
   };

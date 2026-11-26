@@ -41,5 +41,12 @@ test('an image becomes an image attachment with its caption as text', () => {
 
 test('voice notes, videos, documents and stickers are unsupported attachments', () => {
   for (const m of [{ audioMessage: {} }, { videoMessage: {} }, { documentMessage: {} }, { stickerMessage: {} }])
-    assert.deepEqual(toIncoming(msg(m)), { key, text: '', attachment: { kind: 'unsupported' } });
+    assert.deepEqual(toIncoming(msg(m)), { key, text: '', quotedId: null, attachment: { kind: 'unsupported' } });
+});
+
+test('the quoted message id comes from the text or image context', () => {
+  assert.equal(toIncoming(msg({ extendedTextMessage: { text: 'a', contextInfo: { stanzaId: 'BOT1' } } }))?.quotedId, 'BOT1');
+  assert.equal(toIncoming(msg({ imageMessage: { caption: 'a', contextInfo: { stanzaId: 'BOT2' } } }))?.quotedId, 'BOT2');
+  assert.equal(toIncoming(msg({ extendedTextMessage: { text: 'a' } }))?.quotedId, null);
+  assert.equal(toIncoming(msg({ conversation: 'a' }))?.quotedId, null);
 });

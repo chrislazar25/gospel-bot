@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { issueBody, issueTitle, newIssue, photoPath } from './report.js';
+import { issueBody, followupBody, issueTitle, newIssue, photoPath } from './report.js';
 
 test('phone-like numbers are removed from the body', () => {
   const body = issueBody('Call me on +1 555-123-4567 or 0771234567, also 12345678 and (555) 123-4567', 'ABC123');
@@ -53,4 +53,9 @@ test('the photo path is built from a sanitized message id and a known extension'
   assert.equal(photoPath('3EB0/../AB', 'image/png'), 'reports/3EB0AB.png');
   assert.equal(photoPath('M1', 'image/jpeg'), 'reports/M1.jpg');
   assert.equal(photoPath('M1', 'application/x-evil'), 'reports/M1.jpg');
+});
+
+test('a follow-up comment is scrubbed and ends with the marker', () => {
+  assert.equal(followupBody('hi @octocat', { url: 'https://x/y.jpg' }), 'hi @\u200boctocat\n\n![photo](https://x/y.jpg)\n\n<!-- wa-followup -->');
+  assert.equal(followupBody('plain'), 'plain\n\n<!-- wa-followup -->');
 });

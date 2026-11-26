@@ -2,6 +2,7 @@ export const STATES = ['new', 'triage', 'other', 'bug', 'no-repro', 'fixing', 'p
 export type State = (typeof STATES)[number];
 
 export const REPORT_LABEL = 'benny:report';
+export const RETRIAGE_LABEL = 'benny:triage-again';
 export const BOT_PREFIX = '🤖 ';
 
 export const TABLE: Record<State, { label: string | null; emoji: string; reply: string | null; rank: number; terminal: boolean }> = {

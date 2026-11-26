@@ -71,3 +71,15 @@ test('upload accepts 422 only when the file is already on the media branch', asy
   await assert.rejects(createGithub(config, byMethod({ PUT: 422, GET: 404 })).upload('reports/M1.jpg', Buffer.from('a')), /github_404/);
   await assert.rejects(createGithub(config, byMethod({ PUT: 404 })).upload('reports/M1.jpg', Buffer.from('a')), /github_404/);
 });
+
+test('comment and addLabel post to the issue', async () => {
+  const { calls, request } = fake(201, {});
+  const gh = createGithub(config, request);
+  await gh.comment(5, 'hello');
+  await gh.addLabel(5, 'benny:triage-again');
+  assert.deepEqual(calls.map((c) => [c.init.method, c.url]), [
+    ['POST', 'https://api.github.com/repos/o/r/issues/5/comments'], ['POST', 'https://api.github.com/repos/o/r/issues/5/labels'],
+  ]);
+  assert.deepEqual(JSON.parse(String(calls[0]!.init.body)), { body: 'hello' });
+  assert.deepEqual(JSON.parse(String(calls[1]!.init.body)), { labels: ['benny:triage-again'] });
+});
