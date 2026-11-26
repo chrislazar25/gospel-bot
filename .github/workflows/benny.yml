@@ -108,8 +108,10 @@ jobs:
       group: benny-${{ github.event.issue.number }}
       cancel-in-progress: false
     permissions:
+      contents: read
       issues: write
       pull-requests: read
+      actions: write
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
@@ -152,8 +154,12 @@ jobs:
         id: start
         if: steps.verdict.outputs.verdict == 'bug' && steps.verdict.outputs.duplicate_of == '0'
         run: |
-          existing=$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url // ""')
+          # A fork can open a pull request from a branch with the same name, so only this repository's counts.
+          existing=$(gh pr list --head "$BRANCH" --state open --json url,isCrossRepository \
+            --jq '[.[] | select(.isCrossRepository == false)][0].url // ""')
           if [[ -n "$existing" ]]; then
+            # An earlier run may have opened the pull request and then failed to start CI.
+            gh workflow run ci.yml --ref "$BRANCH"
             printf '<!-- benny:pr -->\nA draft fix for this report is already open, so Benny did not start another: %s\n' "$existing" |
               gh issue comment "$ISSUE" --body-file -
             gh issue edit "$ISSUE" --add-label benny:pr
