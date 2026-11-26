@@ -25,7 +25,7 @@ function setup() {
   const uploaded: { path: string; size: number }[] = [];
   const comments: { issue: number; body: string }[] = [];
   const labelled: { issue: number; label: string }[] = [];
-  const faults = { create: false, createLost: false, get: new Set<number>(), reply: false, replyLost: false, upload: false };
+  const faults = { create: false, createLost: false, get: new Set<number>(), reply: false, replyLost: false, upload: false, label: false };
   const wa: Whatsapp = {
     async react(key, emoji) { calls.push({ kind: 'react', key, value: emoji }); },
     async reply(key, text, id) {
@@ -53,7 +53,10 @@ function setup() {
       return issues.get(n)!;
     },
     async comment(issue, body) { comments.push({ issue, body }); },
-    async addLabel(issue, label) { labelled.push({ issue, label }); },
+    async addLabel(issue, label) {
+      if (faults.label) throw new Error('github_502');
+      labelled.push({ issue, label });
+    },
     async upload(path, bytes) {
       if (faults.upload) throw new Error('github_500');
       uploaded.push({ path, size: bytes.length });
@@ -478,6 +481,44 @@ test('a redelivered follow-up is commented once', async () => {
   await t.bridge.onMessage(quoting(dad('F1', 'detail'), t.replyIds[0]!));
   await t.bridge.onMessage(quoting(dad('F1', 'detail'), t.replyIds[0]!));
   assert.equal(t.comments.length, 1);
+});
+
+test('a follow-up redelivered after a restart is not commented again', async () => {
+  const t = setup();
+  await askedForMore(t);
+  await t.bridge.onMessage(quoting(dad('F1', 'detail'), t.replyIds[0]!));
+  await t.restart().onMessage(quoting(dad('F1', 'detail'), t.replyIds[0]!));
+  assert.equal(t.comments.length, 1);
+  assert.equal(t.calls.length, 1);
+});
+
+test('a failed re-triage label is retried at the next poll, even after a restart, until GitHub accepts it', async () => {
+  const t = setup();
+  await askedForMore(t);
+  t.faults.label = true;
+  await t.bridge.onMessage(quoting(dad('F1', 'detail'), t.replyIds[0]!));
+  assert.equal(t.comments.length, 1);
+  assert.deepEqual(t.labelled, []);
+  assert.ok(t.logs.some((l) => l.event === 'retriage_failed'));
+  const again = t.restart();
+  await again.poll();
+  assert.deepEqual(t.labelled, []);
+  t.faults.label = false;
+  await again.poll();
+  await again.poll();
+  assert.deepEqual(t.labelled, [{ issue: 101, label: 'benny:triage-again' }]);
+  assert.equal(t.comments.length, 1);
+});
+
+test('a voice note whose reply failed is answered when it is redelivered, with the same message id', async () => {
+  const t = setup();
+  t.faults.replyLost = true;
+  await t.bridge.onMessage(voiceNote('V1'));
+  t.faults.replyLost = false;
+  await t.bridge.onMessage(voiceNote('V1'));
+  await t.bridge.onMessage(voiceNote('V1'));
+  assert.equal(t.replyIds.length, 2);
+  assert.equal(t.replyIds[0], t.replyIds[1]);
 });
 
 test('when the comment fails nothing is reacted to and the report is untouched', async () => {

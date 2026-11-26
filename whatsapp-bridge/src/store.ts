@@ -11,6 +11,8 @@ const entrySchema = z.object({
   key: keySchema, applied: z.enum(STATES), replies: z.array(z.string()).default([]),
   // A state change saved but not yet confirmed sent to WhatsApp, with the id its reply will use.
   sending: z.object({ state: z.enum(STATES), reply: z.string().nullable() }).optional(),
+  // A follow-up arrived and the issue still needs re-triage if it is no-repro.
+  retriage: z.boolean().optional(),
 });
 export type Entry = z.infer<typeof entrySchema>;
 // pending: an issue may exist on GitHub for this message but the bridge has not confirmed it. done: nothing left to do.

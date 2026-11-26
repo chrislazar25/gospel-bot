@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import type { Github } from './github.js';
 import { type Log, why } from './log.js';
 import { followupBody, messageMarker, newIssue, type Photo, photoPath } from './report.js';
-import { BOT_PREFIX, RETRIAGE_LABEL, stateOf, TABLE } from './states.js';
-import type { Key, Store } from './store.js';
+import { BOT_PREFIX, RETRIAGE_LABEL, type State, stateOf, TABLE } from './states.js';
+import type { Entry, Key, Store } from './store.js';
 
 export type Attachment = { kind: 'image'; mimetype: string; download(): Promise<Buffer> } | { kind: 'unsupported' };
 export type Incoming = { key: Key; text: string; quotedId: string | null; attachment: Attachment | null };
@@ -21,7 +21,6 @@ export const replyId = (seed: string) => '3EB0' + createHash('sha256').update(se
 
 export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; groupJid: string; log: Log }) {
   const { wa, github, store, groupJid, log } = d;
-  const handled = new Set<string>();
   let queue: Promise<unknown> = Promise.resolve();
   const serial = (fn: () => Promise<void>) => {
     const run = queue.then(fn);
@@ -34,7 +33,7 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
     return bytes.length > MAX_PHOTO_BYTES ? { tooLarge: true } : { url: await github.upload(photoPath(id, a.mimetype), bytes) };
   };
 
-  const followup = async (issue: number, key: Key, body: string, attachment: Attachment | null) => {
+  const followup = async ([issue, entry]: [number, Entry], key: Key, body: string, attachment: Attachment | null) => {
     try {
       const photo = attachment?.kind === 'image' ? await upload(attachment, key.id) : undefined;
       await github.comment(issue, followupBody(body, photo));
@@ -42,12 +41,24 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
       log('followup_failed', { issue, msg: key.id, error: why(e) });
       return;
     }
-    handled.add(key.id);
+    store.set(issue, { ...entry, retriage: true });
+    store.setMessage(key.id, { status: 'done', issue, at: new Date().toISOString() });
     log('followup_added', { issue, msg: key.id });
     await wa.react(key, '👀').catch((e) => log('react_failed', { issue, error: why(e) }));
-    try { if (stateOf(await github.get(issue)) === 'no-repro') await github.addLabel(issue, RETRIAGE_LABEL); } catch (e) {
+    await check(issue);
+  };
+
+  // Owed after every follow-up. Kept in the store until GitHub accepts it, so a failed label add is retried every poll.
+  const retriage = async (issue: number, entry: Entry, state: State): Promise<Entry> => {
+    try {
+      if (state === 'no-repro') await github.addLabel(issue, RETRIAGE_LABEL);
+    } catch (e) {
       log('retriage_failed', { issue, error: why(e) });
+      return entry;
     }
+    const settled = { ...entry, retriage: false };
+    store.set(issue, settled);
+    return settled;
   };
 
   const track = async (key: Key, issue: number) => {
@@ -74,16 +85,19 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
     const body = text.trim();
     if (key.remoteJid !== groupJid || (!body && !attachment) || body.startsWith(BOT_PREFIX)) return;
     const seen = store.message(key.id);
-    if (seen?.status === 'done' || handled.has(key.id)) return;
+    if (seen?.status === 'done') return;
     if (!body && attachment?.kind === 'unsupported') {
-      handled.add(key.id);
       log('unsupported_media', { msg: key.id });
       await wa.react(key, '🤔').catch((e) => log('react_failed', { msg: key.id, error: why(e) }));
-      await wa.reply(key, BOT_PREFIX + CANT_OPEN, replyId(`cant-open:${key.id}`)).catch((e) => log('reply_failed', { msg: key.id, error: why(e) }));
+      try { await wa.reply(key, BOT_PREFIX + CANT_OPEN, replyId(`cant-open:${key.id}`)); } catch (e) {
+        log('reply_failed', { msg: key.id, error: why(e) });
+        return;
+      }
+      store.setMessage(key.id, { status: 'done', at: new Date().toISOString() });
       return;
     }
     const thread = quotedId ? store.threadOf(quotedId) : undefined;
-    if (thread) return followup(thread[0], key, body, attachment);
+    if (thread) return followup(thread, key, body, attachment);
     let issue: number | undefined;
     try {
       store.setMessage(key.id, { status: 'pending', key, at: new Date().toISOString() });
@@ -97,7 +111,7 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
   };
 
   const check = async (issue: number) => {
-    const entry = store.entries().find(([n]) => n === issue)?.[1];
+    let entry = store.entries().find(([n]) => n === issue)?.[1];
     if (!entry) return;
     if (entry.key.remoteJid !== groupJid) {
       store.delete(issue);
@@ -106,6 +120,7 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
     }
     try {
       const state = stateOf(await github.get(issue));
+      if (entry.retriage) entry = await retriage(issue, entry, state);
       if (state === entry.applied && !entry.sending) return;
       // Saved before sending, so a retry after a timeout or a crash resends the same reply id instead of a new message.
       const sending = entry.sending?.state === state
