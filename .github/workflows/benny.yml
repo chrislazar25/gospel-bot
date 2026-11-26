@@ -278,7 +278,8 @@ jobs:
           blocked() { printf '%s\n' "$1" > "$dir/blocked.txt"; echo "::error::$1"; exit 1; }
           [[ -s "$dir/fix.patch" ]] || blocked 'Claude reported a fix but changed no files.'
           git apply --index "$dir/fix.patch" || blocked 'The fix does not apply to the commit it was made on.'
-          changed=$(git diff --cached --name-only)
+          # Without rename detection, a moved file lists both its old and its new path.
+          changed=$(git diff --cached --name-only --no-renames)
           [[ -n "$changed" ]] || blocked 'Claude reported a fix but changed no files.'
           forbidden=$(grep -E '^(infra|\.github|scripts/cloud|local-lab/migrations)/|(^|/)\.env|\.(tfvars|tfstate|pem|key)$' <<< "$changed" || true)
           [[ -z "$forbidden" ]] || blocked "The fix changes files Benny may not touch: $(paste -sd ' ' - <<< "$forbidden")."
