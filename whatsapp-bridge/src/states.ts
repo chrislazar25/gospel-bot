@@ -8,7 +8,7 @@ export const BOT_PREFIX = '🤖 ';
 export const TABLE: Record<State, { label: string | null; emoji: string; reply: string | null; rank: number; terminal: boolean }> = {
   new: { label: 'benny:new', emoji: '👀', reply: null, rank: 0, terminal: false },
   triage: { label: 'benny:triage', emoji: '🔎', reply: null, rank: 1, terminal: false },
-  other: { label: 'benny:other', emoji: '💬', reply: "Looked into this. It's not a bug. Chris will follow up.", rank: 2, terminal: false },
+  other: { label: 'benny:other', emoji: '💬', reply: 'Looked into this. Chris will follow up with you.', rank: 2, terminal: false },
   bug: { label: 'benny:bug', emoji: '🐞', reply: null, rank: 2, terminal: false },
   'no-repro': { label: 'benny:no-repro', emoji: '🤔', reply: "Couldn't make this happen. Can you tell me more about what you saw?", rank: 2, terminal: false },
   fixing: { label: 'benny:fixing', emoji: '🛠️', reply: null, rank: 3, terminal: false },
