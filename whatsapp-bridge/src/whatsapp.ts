@@ -36,13 +36,14 @@ const waKey = (k: Key) => ({ remoteJid: k.remoteJid, id: k.id, fromMe: k.fromMe,
 export type Connection = Whatsapp & {
   ready: Promise<void>;
   groups(): Promise<{ id: string; subject: string }[]>;
+  createGroup(subject: string): Promise<{ id: string; subject: string }>;
   close(): Promise<void>;
 };
 
 export async function connectWhatsapp(o: {
-  home: string; pairPhone?: string | undefined; log: Log;
-  onMessage?(m: Incoming): void; onLoggedOut(): void;
-}): Promise<Connection> {
+  home: string; pairPhone?: string | undefined; interactive: boolean; log: Log;
+  onMessage?(m: Incoming): void; onUnlinked(): void;
+}, makeSocket: typeof makeWASocket = makeWASocket): Promise<Connection> {
   const authDir = join(o.home, 'auth');
   ensurePrivateDir(o.home);
   ensurePrivateDir(authDir);
@@ -53,7 +54,10 @@ export async function connectWhatsapp(o: {
   const ready = new Promise<void>((r) => { markReady = r; });
 
   const start = () => {
-    const s = makeWASocket({ auth: state, logger: quiet, browser: Browsers.macOS('Chrome'), markOnlineOnConnect: false, syncFullHistory: false });
+    const s = makeSocket({
+      auth: state, logger: quiet, browser: Browsers.macOS('Chrome'),
+      markOnlineOnConnect: false, syncFullHistory: false, shouldSyncHistoryMessage: () => false,
+    });
     sock = s;
     let asked = false;
     s.ev.on('creds.update', () => { void saveCreds().catch((e) => o.log('creds_save_failed', { error: why(e) })); });
@@ -63,6 +67,7 @@ export async function connectWhatsapp(o: {
     });
     s.ev.on('connection.update', async (u) => {
       if (u.qr && !state.creds.registered) {
+        if (!o.interactive) { o.log('not_linked'); o.onUnlinked(); return; }
         if (!o.pairPhone) qrcode.generate(u.qr, { small: true }, (q) => console.log(`Scan this QR in WhatsApp, Linked devices, Link a device.\n${q}`));
         else if (!asked) {
           asked = true;
@@ -76,7 +81,7 @@ export async function connectWhatsapp(o: {
         const code = statusOf(u.lastDisconnect?.error);
         o.log('wa_close', { code: code ?? 0 });
         if (closing) return;
-        if (code === DisconnectReason.loggedOut) { o.log('wa_logged_out'); o.onLoggedOut(); return; }
+        if (code === DisconnectReason.loggedOut) { o.log('wa_logged_out'); o.onUnlinked(); return; }
         const delay = Math.min(30000, 1000 * 2 ** attempt++);
         setTimeout(start, delay).unref();
       }
@@ -95,6 +100,7 @@ export async function connectWhatsapp(o: {
       return messageId;
     },
     async groups() { return Object.values(await live().groupFetchAllParticipating()).map(({ id, subject }) => ({ id, subject })); },
+    async createGroup(subject) { const { id, subject: name } = await timed(live().groupCreate(subject, [])); return { id, subject: name }; },
     async close() { closing = true; await saveCreds(); await sock?.end(undefined); },
   };
 }

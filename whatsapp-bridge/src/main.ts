@@ -4,19 +4,29 @@ import { linkConfig, runConfig } from './config.js';
 import { createGithub } from './github.js';
 import { log, why } from './log.js';
 import { openStore } from './store.js';
-import { connectWhatsapp } from './whatsapp.js';
+import { type Connection, connectWhatsapp } from './whatsapp.js';
 
 const flags = process.argv.slice(2);
-const onLoggedOut = () => process.exit(1);
+const onUnlinked = () => process.exit(3);
 
-async function link(listGroups: boolean) {
+async function interactive(action: (wa: Connection) => Promise<void>) {
   const env = linkConfig(process.env);
-  const wa = await connectWhatsapp({ home: env.BRIDGE_HOME, pairPhone: env.PAIR_PHONE, log, onLoggedOut });
+  const wa = await connectWhatsapp({ home: env.BRIDGE_HOME, pairPhone: env.PAIR_PHONE, interactive: true, log, onUnlinked });
   await wa.ready;
-  if (listGroups) for (const g of await wa.groups()) console.log(`${g.id}\t${g.subject}`);
-  else console.log('linked');
+  await action(wa);
   await wa.close();
   process.exit(0);
+}
+
+const link = () => interactive(async () => console.log('linked'));
+const listGroups = () => interactive(async (wa) => { for (const g of await wa.groups()) console.log(`${g.id}\t${g.subject}`); });
+
+async function createGroup(subject: string | undefined) {
+  if (!subject || subject.startsWith('--')) throw new Error('usage: --create-group "<subject>"');
+  return interactive(async (wa) => {
+    const g = await wa.createGroup(subject).catch((e) => { throw new Error(`group_create_failed: ${why(e)}`); });
+    console.log(`${g.id}\t${g.subject}`);
+  });
 }
 
 async function run() {
@@ -25,7 +35,7 @@ async function run() {
   const github = createGithub({ token: env.GITHUB_TOKEN, repo: env.GITHUB_REPO });
   let bridge: ReturnType<typeof createBridge> | undefined;
   const wa = await connectWhatsapp({
-    home: env.BRIDGE_HOME, pairPhone: env.PAIR_PHONE, log, onLoggedOut,
+    home: env.BRIDGE_HOME, interactive: false, log, onUnlinked,
     onMessage: (m) => { bridge?.onMessage(m).catch((e) => log('handler_failed', { error: why(e) })); },
   });
   bridge = createBridge({ wa, github, store, groupJid: env.REPORT_GROUP_JID, log });
@@ -36,7 +46,8 @@ async function run() {
   for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { wa.close().finally(() => process.exit(0)); });
 }
 
-const main = flags.includes('--link') ? link(false) : flags.includes('--list-groups') ? link(true) : run();
+const create = flags.indexOf('--create-group');
+const main = flags.includes('--link') ? link() : flags.includes('--list-groups') ? listGroups() : create >= 0 ? createGroup(flags[create + 1]) : run();
 main.catch((e) => {
   log('fatal', { error: e instanceof ZodError ? 'invalid config: ' + e.issues.map((i) => i.path.join('.')).join(', ') : why(e) });
   process.exit(2);

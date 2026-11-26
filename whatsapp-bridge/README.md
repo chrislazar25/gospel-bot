@@ -43,13 +43,31 @@ node dist/main.js --list-groups
 
 This prints each group's JID and subject. Copy the JID of the report group into `REPORT_GROUP_JID`.
 
+## Create the report group
+
+```sh
+npm run build
+node dist/main.js --create-group "Gospel Bot help"
+```
+
+This creates a group with only you in it and prints its JID and subject. If WhatsApp rejects a group with no other participants, the command prints the reason and exits with code 2. Create the group in WhatsApp instead, then use `--list-groups`.
+
 ## Run
 
 ```sh
 GITHUB_TOKEN=... REPORT_GROUP_JID=...@g.us npm start
 ```
 
-The bridge logs one JSON object per line. It never logs tokens or message text. A `heartbeat` line appears every `POLL_SECONDS`. If WhatsApp logs the device out, the bridge exits with code 1. Link again to recover.
+The bridge logs one JSON object per line. It never logs tokens or message text. A `heartbeat` line appears every `POLL_SECONDS`.
+
+The bridge is safe to run on a personal number. It never marks the owner online, never sends read receipts and does not sync message history. In run mode it never shows a QR code or pairing code. If the session is not linked or WhatsApp logs the device out, it logs `not_linked` or `wa_logged_out` and exits with code 3. Run `npm run link` to recover.
+
+Exit codes:
+
+- 0 means the bridge stopped cleanly.
+- 1 means it crashed. Restart it.
+- 2 means bad config or a failed `--create-group`.
+- 3 means the number needs linking again. Do not restart until you have linked it.
 
 ## Develop
 
