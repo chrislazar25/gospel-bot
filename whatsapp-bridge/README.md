@@ -21,7 +21,7 @@ Phone-like numbers are removed from issue titles, bodies and comments, including
 - `GITHUB_TOKEN` is required. It needs permission to create and read issues and to write contents on the `benny-media` branch.
 - `GITHUB_REPO` defaults to `chrislazar25/gospel-bot`.
 - `REPORT_GROUP_JID` is required to run. Find it with `--list-groups`.
-- `BRIDGE_HOME` defaults to `~/.gospel-bridge`. It holds the WhatsApp session in `auth/` and the report map in `reports.json`.
+- `BRIDGE_HOME` defaults to `~/.gospel-bridge`. It holds the WhatsApp session in `auth/`, the report map in `reports.json`, and the single-instance lock in `bridge.lock`.
 - `PAIR_PHONE` is optional. Digits only, with country code. When set, linking uses a pairing code instead of a QR.
 - `POLL_SECONDS` defaults to 60. It sets the poll interval and the heartbeat interval.
 
@@ -62,12 +62,22 @@ The bridge logs one JSON object per line. It never logs tokens or message text. 
 
 The bridge is safe to run on a personal number. It never marks the owner online, never sends read receipts and does not sync message history. In run mode it never shows a QR code or pairing code. If the session is not linked or WhatsApp logs the device out, it logs `not_linked` or `wa_logged_out` and exits with code 3. Run `npm run link` to recover.
 
+It also exits with code 3 instead of reconnecting when WhatsApp reports that another session replaced this one (`wa_replaced`), refused the device (`wa_forbidden`) or found a multi-device mismatch (`wa_multidevice_mismatch`). Reconnecting there would make two clients fight over the owner's account. Find the other bridge or linked device before you start it again.
+
+Only one bridge process runs per `BRIDGE_HOME`. Every mode takes `$BRIDGE_HOME/bridge.lock`, which holds the process id. If a live process already holds it, the new one logs `already_running` and exits with code 2. That includes `--link`, `--list-groups` and `--create-group`, so stop the service first:
+
+```sh
+launchctl bootout gui/$(id -u)/com.chrislazar.gospel-bridge
+```
+
+A lock left by a process that died, or by a run before the last reboot, is replaced. The lock is removed when the process exits.
+
 Exit codes:
 
 - 0 means the bridge stopped cleanly.
 - 1 means it crashed. Restart it.
-- 2 means bad config or a failed `--create-group`.
-- 3 means the number needs linking again. Do not restart until you have linked it.
+- 2 means bad config, a failed `--create-group`, or another bridge already running on this `BRIDGE_HOME`.
+- 3 means the number needs linking again, or another session took over the account. Do not restart until you have fixed that.
 
 ## Develop
 

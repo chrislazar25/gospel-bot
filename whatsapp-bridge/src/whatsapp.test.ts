@@ -116,9 +116,10 @@ test('the quoted message id comes from the text or image context', () => {
 
 function fakeSocket() {
   const handlers = new Map<string, (u: unknown) => unknown>();
-  const seen: { options?: Parameters<typeof makeWASocket>[0]; pairing: string[]; groupCreate: [string, string[]][] } = { pairing: [], groupCreate: [] };
+  const seen: { options?: Parameters<typeof makeWASocket>[0]; sockets: number; pairing: string[]; groupCreate: [string, string[]][] } = { sockets: 0, pairing: [], groupCreate: [] };
   const socket = ((options: Parameters<typeof makeWASocket>[0]) => {
     seen.options = options;
+    seen.sockets++;
     return {
       ev: { on: (event: string, fn: (u: unknown) => unknown) => { handlers.set(event, fn); } },
       requestPairingCode: async (phone: string) => { seen.pairing.push(phone); return 'CODE'; },
@@ -133,7 +134,7 @@ const connect = async (interactive: boolean, pairPhone?: string) => {
   const events: string[] = [];
   let unlinked = 0;
   const wa = await connectWhatsapp(
-    { home: join(mkdtempSync(join(tmpdir(), 'wa-')), 'home'), interactive, pairPhone, log: (e) => events.push(e), onUnlinked: () => { unlinked++; } },
+    { home: join(mkdtempSync(join(tmpdir(), 'wa-')), 'home'), interactive, pairPhone, log: (e) => events.push(e), onStop: () => { unlinked++; } },
     f.socket,
   );
   return { ...f, wa, events, unlinked: () => unlinked };
@@ -162,6 +163,30 @@ test('being logged out stops the bridge instead of reconnecting', async () => {
   await c.emit({ connection: 'close', lastDisconnect: { error: { output: { statusCode: DisconnectReason.loggedOut } } } });
   assert.deepEqual(c.events, ['wa_close', 'wa_logged_out']);
   assert.equal(c.unlinked(), 1);
+});
+
+test('a replaced, forbidden or mismatched session stops instead of reconnecting', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  for (const [code, event] of [
+    [DisconnectReason.connectionReplaced, 'wa_replaced'], [DisconnectReason.forbidden, 'wa_forbidden'],
+    [DisconnectReason.multideviceMismatch, 'wa_multidevice_mismatch'],
+  ] as const) {
+    const c = await connect(false);
+    await c.emit({ connection: 'close', lastDisconnect: { error: { output: { statusCode: code } } } });
+    t.mock.timers.tick(60000);
+    assert.deepEqual(c.events, ['wa_close', event]);
+    assert.equal(c.unlinked(), 1);
+    assert.equal(c.seen.sockets, 1);
+  }
+});
+
+test('a lost connection reconnects', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const c = await connect(false);
+  await c.emit({ connection: 'close', lastDisconnect: { error: { output: { statusCode: DisconnectReason.connectionLost } } } });
+  t.mock.timers.tick(60000);
+  assert.equal(c.seen.sockets, 2);
+  assert.equal(c.unlinked(), 0);
 });
 
 test('the socket never marks the owner online and never syncs history', async () => {

@@ -16,6 +16,13 @@ const timed = <T>(p: Promise<T>) => {
   const limit = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('wa_timeout')), 30000); });
   return Promise.race([p, limit]).finally(() => clearTimeout(timer));
 };
+// Disconnects where reconnecting would fight WhatsApp for the owner's personal account.
+const STOP_REASONS: Partial<Record<number, string>> = {
+  [DisconnectReason.loggedOut]: 'wa_logged_out',
+  [DisconnectReason.connectionReplaced]: 'wa_replaced',
+  [DisconnectReason.forbidden]: 'wa_forbidden',
+  [DisconnectReason.multideviceMismatch]: 'wa_multidevice_mismatch',
+};
 const statusOf = (e: unknown) => z.object({ output: z.object({ statusCode: z.number() }) }).safeParse(e).data?.output.statusCode;
 
 type Content = WAMessage['message'];
@@ -69,7 +76,7 @@ export type Connection = Whatsapp & {
 
 export async function connectWhatsapp(o: {
   home: string; pairPhone?: string | undefined; interactive: boolean; log: Log;
-  onMessage?(m: Incoming): void; onUnlinked(): void;
+  onMessage?(m: Incoming): void; onStop(): void;
 }, makeSocket: typeof makeWASocket = makeWASocket): Promise<Connection> {
   const authDir = join(o.home, 'auth');
   ensurePrivateDir(o.home);
@@ -94,7 +101,7 @@ export async function connectWhatsapp(o: {
     });
     s.ev.on('connection.update', async (u) => {
       if (u.qr && !state.creds.registered) {
-        if (!o.interactive) { o.log('not_linked'); o.onUnlinked(); return; }
+        if (!o.interactive) { o.log('not_linked'); o.onStop(); return; }
         if (!o.pairPhone) qrcode.generate(u.qr, { small: true }, (q) => console.log(`Scan this QR in WhatsApp, Linked devices, Link a device.\n${q}`));
         else if (!asked) {
           asked = true;
@@ -108,7 +115,8 @@ export async function connectWhatsapp(o: {
         const code = statusOf(u.lastDisconnect?.error);
         o.log('wa_close', { code: code ?? 0 });
         if (closing) return;
-        if (code === DisconnectReason.loggedOut) { o.log('wa_logged_out'); o.onUnlinked(); return; }
+        const stop = code === undefined ? undefined : STOP_REASONS[code];
+        if (stop) { o.log(stop); o.onStop(); return; }
         const delay = Math.min(30000, 1000 * 2 ** attempt++);
         setTimeout(start, delay).unref();
       }
