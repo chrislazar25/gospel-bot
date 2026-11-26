@@ -6,7 +6,7 @@ const REPOSITORY = path.resolve(__dirname, '..');
 const LEAD_DAYS = 21;
 const HOLD_REASONS = {
   'no-fully-contained-archive-citation': 'No archive message quotes this reading.',
-  'partial-verses-unsupported': 'The reading cites part of a verse, which the matcher cannot check.',
+  'no-whole-verses': 'The reading cites only part of a verse, which the matcher cannot check.',
   'known-quote-citation-mismatch': 'The only archive matches have a known quotation error.',
 };
 

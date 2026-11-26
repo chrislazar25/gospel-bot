@@ -16,10 +16,10 @@
   },
   "rankingPolicy": "Lexicographic shortlist by whole-verse coverage, presence of title/verse/closing, exact calendar label, archive date, and archive index. No semantic or pastoral quality claim.",
   "summary": {
-    "mechanicalCandidateDates": 13,
-    "candidates": 13,
+    "mechanicalCandidateDates": 14,
+    "candidates": 14,
     "gaps": 0,
-    "unsupported": 1
+    "unsupported": 0
   },
   "unsupportedArchive": [
     {
@@ -333,7 +333,7 @@
     },
     {
       "date": "2026-11-01",
-      "state": "unsupported",
+      "state": "candidate",
       "approval": "DRAFT_REQUIRES_REVIEW",
       "gospel": "Matthew 5:1-12a",
       "season": "Ordinary Time",
@@ -341,13 +341,134 @@
       "readingsUrl": "https://cpbjr.github.io/catholic-readings-api/readings/2026/11-01.json",
       "calendarUrl": "https://cpbjr.github.io/catholic-readings-api/liturgical-calendar/2026/11-01.json",
       "calendarHold": null,
-      "proposed": null,
-      "alternatives": [],
+      "proposed": {
+        "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:1130",
+        "archiveIndex": 1130,
+        "archiveDate": "2026-01-31",
+        "citation": "MT(5:3,4,9)",
+        "originalLabel": "4th Ordinary Sunday",
+        "payload": "4th Ordinary Sunday Gospel Msg ( The Beatitudes) Jesus called his disciples and said to them, \"Blessed are the poor in spirit, for theirs is the kingdom of heaven. Blessed are those  who mourn, for they will be comforted. Blessed are the peacemakers, for they will be called children of God.\" MT(5:3,4,9) Jesus is Lord, spread the living word of God.",
+        "payloadSha256": "5f01bdca96db5cf53d36c1244f5d60f77b19da578fd45f78c31157fd0505c4c5",
+        "wordCount": 61,
+        "sourceOccurrences": [],
+        "editorialFindings": [],
+        "provenance": {
+          "sourceIdentityAvailable": false,
+          "senderClaim": "Legacy archive omits sender and original-message identity.",
+          "authorshipVerified": false,
+          "quotationAccuracyVerified": false
+        },
+        "ranking": {
+          "coveredWholeVerses": 3,
+          "readingWholeVerses": 11,
+          "contextFields": [
+            "title",
+            "verse",
+            "closing"
+          ],
+          "calendarLabelExact": false,
+          "reasons": [
+            "All 3 cited whole verse(s) are contained in the reading union.",
+            "Archive has 3 of 3 context fields. This does not establish clarity or completeness of meaning.",
+            "Archive label requires review against the current calendar.",
+            "Archive date breaks ties only. Ranking does not establish pastoral quality."
+          ]
+        },
+        "holds": [
+          "Review every message in this batch. No message is approved.",
+          "Authorship and the exact Scripture quotation remain unverified.",
+          "Review the original dated or feast label. The exact archived payload is preserved without a label rewrite.",
+          "Check meaning in the complete reading, local Roman Catholic calendar, and recent reuse before approval.",
+          "Legacy sender provenance is unavailable. Do not attribute composition to the father."
+        ]
+      },
+      "alternatives": [
+        {
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:1041",
+          "archiveIndex": 1041,
+          "archiveDate": "2025-10-31",
+          "citation": "MT(5:9-10)",
+          "originalLabel": "All Saints day",
+          "payload": "All Saints day Gospel Msg ( Children of God ) Jesus said, \" Blessed are the peacemakers, for they will be called children of God. Blessed are those who are persecuted for righteousness' sake, for theirs is the kingdom of heaven.\" MT(5:9-10) Happy Feast Everyone!!Jesus is Lord, spread the living word of God.",
+          "payloadSha256": "b4506a076754ccad15d0218606e22499d75c4e9ac61b2bad6e148883065b20a0",
+          "wordCount": 53,
+          "sourceOccurrences": [],
+          "editorialFindings": [],
+          "provenance": {
+            "sourceIdentityAvailable": false,
+            "senderClaim": "Legacy archive omits sender and original-message identity.",
+            "authorshipVerified": false,
+            "quotationAccuracyVerified": false
+          },
+          "ranking": {
+            "coveredWholeVerses": 2,
+            "readingWholeVerses": 11,
+            "contextFields": [
+              "title",
+              "verse",
+              "closing"
+            ],
+            "calendarLabelExact": false,
+            "reasons": [
+              "All 2 cited whole verse(s) are contained in the reading union.",
+              "Archive has 3 of 3 context fields. This does not establish clarity or completeness of meaning.",
+              "Archive label requires review against the current calendar.",
+              "Archive date breaks ties only. Ranking does not establish pastoral quality."
+            ]
+          },
+          "holds": [
+            "Review every message in this batch. No message is approved.",
+            "Authorship and the exact Scripture quotation remain unverified.",
+            "Review the original dated or feast label. The exact archived payload is preserved without a label rewrite.",
+            "Check meaning in the complete reading, local Roman Catholic calendar, and recent reuse before approval.",
+            "Legacy sender provenance is unavailable. Do not attribute composition to the father."
+          ]
+        },
+        {
+          "sourceId": "87d74af2aff0dfa0a286800daaab53b5dcb72e3a171ef5b1beb8cfc1e0d9a1c3:555",
+          "archiveIndex": 555,
+          "archiveDate": "2022-10-31",
+          "citation": "MT(5:9-10)",
+          "originalLabel": "All Saints day",
+          "payload": "All Saints day Gospel Msg ( Children of God ) Jesus said, \" Blessed are the peacemakers, for they will be called children of God. Blessed are those who are persecuted for righteousness' sake, for theirs is the kingdom of heaven.\" MT(5:9-10) Jesus is Lord, spread the living word of God.",
+          "payloadSha256": "df38572b61e04cb973f984d18418ee7bc80a77b4adb4712d9728f68e191d90df",
+          "wordCount": 51,
+          "sourceOccurrences": [],
+          "editorialFindings": [],
+          "provenance": {
+            "sourceIdentityAvailable": false,
+            "senderClaim": "Legacy archive omits sender and original-message identity.",
+            "authorshipVerified": false,
+            "quotationAccuracyVerified": false
+          },
+          "ranking": {
+            "coveredWholeVerses": 2,
+            "readingWholeVerses": 11,
+            "contextFields": [
+              "title",
+              "verse",
+              "closing"
+            ],
+            "calendarLabelExact": false,
+            "reasons": [
+              "All 2 cited whole verse(s) are contained in the reading union.",
+              "Archive has 3 of 3 context fields. This does not establish clarity or completeness of meaning.",
+              "Archive label requires review against the current calendar.",
+              "Archive date breaks ties only. Ranking does not establish pastoral quality."
+            ]
+          },
+          "holds": [
+            "Review every message in this batch. No message is approved.",
+            "Authorship and the exact Scripture quotation remain unverified.",
+            "Review the original dated or feast label. The exact archived payload is preserved without a label rewrite.",
+            "Check meaning in the complete reading, local Roman Catholic calendar, and recent reuse before approval.",
+            "Legacy sender provenance is unavailable. Do not attribute composition to the father."
+          ]
+        }
+      ],
       "heldCandidates": [],
-      "reason": "partial-verses-unsupported",
-      "holds": [
-        "Reading cannot be matched safely. Resolve the full reference before choosing a message."
-      ]
+      "reason": "archive-shortlist-requires-human-review",
+      "eligibleCount": 5
     },
     {
       "date": "2026-11-02",

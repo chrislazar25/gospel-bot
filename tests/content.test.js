@@ -51,10 +51,26 @@ test('cross-chapter and explicit subsequent chapters retain all bounds', () => {
   assert.equal(citationMatchesReading('LK (14:5)', parseApiRef('Luke 14:1-6')), true);
 });
 
-test('partial verses, alternatives, trailing junk, and invalid ranges are held', () => {
-  for (const reference of ['Matthew 5:1-12a', 'John 1:1-5 or 9-14', 'John 1:1-5 junk', 'John 1:1-5,', 'Luke 4:8-4', 'Luke 0:1', 'Luke 25:1', 'Luke 1:0', 'Luke 1:81', 'Mark 1:1-17:1', 'John 19:2-18:40', 'Acts 1:1', 'constructor 1:1', 'toString 1:1', 'John 1:1/2', 'John 1:1:2']) assert.equal(parseApiRef(reference), null, reference);
+test('a reading drops its partial verses and keeps every whole verse', () => {
+  const intervals = reference => parseApiRef(reference)?.intervals;
+  assert.deepEqual(intervals('Matthew 9:35–10:1, 5a, 6-8'), [{ chapter: 9, start: 35, end: 38 }, { chapter: 10, start: 1, end: 1 }, { chapter: 10, start: 6, end: 8 }]);
+  assert.deepEqual(intervals('Matthew 5:1-12a'), [{ chapter: 5, start: 1, end: 11 }]);
+  assert.deepEqual(intervals('Mark 6:7b-13'), [{ chapter: 6, start: 8, end: 13 }]);
+  assert.deepEqual(intervals('Luke 4:16-30a'), [{ chapter: 4, start: 16, end: 29 }]);
+  assert.deepEqual(intervals('Matthew 9:35-10:1a'), [{ chapter: 9, start: 35, end: 38 }]);
+  assert.deepEqual(intervals('John 3:16a, 16-17'), [{ chapter: 3, start: 16, end: 17 }]);
+  assert.equal(parseReference('John 3:16a').reason, 'no-whole-verses');
+  const dec5 = parseApiRef('Matthew 9:35–10:1, 5a, 6-8');
+  assert.equal(citationMatchesReading('MT(10:7-8)', dec5), true);
+  assert.equal(citationMatchesReading('MT(9:37-38)', dec5), true);
+  assert.equal(citationMatchesReading('MT(10:5)', dec5), false);
+  assert.equal(citationMatchesReading('MT(10:5-7)', dec5), false);
+});
+
+test('partial verses in archive citations, alternatives, trailing junk, and invalid ranges are held', () => {
+  for (const reference of ['John 1:1-5 or 9-14', 'John 1:1-5 junk', 'John 1:1-5,', 'Luke 4:8-4', 'Luke 0:1', 'Luke 25:1', 'Luke 1:0', 'Luke 1:81', 'Mark 1:1-17:1', 'John 19:2-18:40', 'Acts 1:1', 'constructor 1:1', 'toString 1:1', 'John 1:1/2', 'John 1:1:2']) assert.equal(parseApiRef(reference), null, reference);
   for (const citation of ['MT(5:12a)', 'LK(4:4,8junk)', 'LK(4:8-4)', 'LK(4:4) junk', 'LK(4:4) or LK(4:8)', 'LK(4:4,)', 'LK(4:0)', 'LK(99:1)']) assert.equal(parseDadCitation(citation), null, citation);
-  assert.equal(parseReference('Matthew 5:1-12a').reason, 'partial-verses-unsupported');
+  assert.equal(parseReference('MT(5:12a)', 'archive').reason, 'partial-verses-unsupported');
   assert.equal(citationMatchesReading('MT(5:12)', parseApiRef('Matthew 5:1-12a')), false);
 });
 
@@ -157,7 +173,7 @@ test('import CLI writes a new archive and refuses to overwrite it', t => {
 
 test('draft is deterministic and preserves exact payloads, provenance holds, alternatives, and gaps', () => {
   const feed = snapshot();
-  feed.days[1].readings.readings.gospel = 'Matthew 5:1-12a';
+  feed.days[1].readings.readings.gospel = 'John 3:16a';
   feed.days[2].readings.readings.gospel = 'Luke 16:1-8';
   const first = draft(feed);
   assert.deepEqual(first, draft(JSON.parse(JSON.stringify(feed))));
@@ -300,7 +316,7 @@ test('committed review packet replays exactly and every displayed payload matche
   assert.equal(preview.split(stored.sourceSnapshot.archiveSha256).length - 1, 1);
   assert.equal(preview.split('Authorship and quotation accuracy remain unverified.').length - 1, 1);
   assert.ok(preview.includes('[Full metadata and payload hashes](draft-batch.json)'));
-  assert.deepEqual(stored.summary, { mechanicalCandidateDates: 13, candidates: 13, gaps: 0, unsupported: 1 });
+  assert.deepEqual(stored.summary, { mechanicalCandidateDates: 14, candidates: 14, gaps: 0, unsupported: 0 });
   assert.equal(stored.days.length, 14);
   for (const day of stored.days) {
     assert.equal(day.approval, 'DRAFT_REQUIRES_REVIEW');
