@@ -43,7 +43,7 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
       const { emoji, reply } = TABLE[state];
       await wa.react(entry.key, emoji);
       if (reply) sent.add(await wa.reply(entry.key, BOT_PREFIX + reply));
-      if (state === 'merged') store.delete(issue);
+      if (TABLE[state].terminal) store.delete(issue);
       else store.set(issue, { key: entry.key, applied: state });
       log('state_applied', { issue, state });
     } catch (e) {

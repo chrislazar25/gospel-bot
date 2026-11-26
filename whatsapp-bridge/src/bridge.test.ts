@@ -151,6 +151,20 @@ test('a merged issue gets a check mark and thanks, then is dropped and no longer
   assert.equal(t.calls.length, 2);
 });
 
+test('an issue closed as not planned is acknowledged once, dropped and no longer polled', async () => {
+  const t = setup();
+  await t.bridge.onMessage(dad('M1'));
+  t.calls.length = 0;
+  t.issues.set(101, { number: 101, state: 'closed', stateReason: 'not_planned', labels: ['benny:report', 'benny:triage'] });
+  await t.bridge.poll();
+  assert.deepEqual(t.calls.map((c) => [c.kind, c.value]), [['react', '💬'], ['reply', '🤖 Chris closed this one.']]);
+  assert.equal(t.store.entries().length, 0);
+  t.faults.get.add(101);
+  await t.bridge.poll();
+  assert.equal(t.calls.length, 2);
+  assert.ok(!t.logs.some((l) => l.event === 'poll_failed'));
+});
+
 test('a GitHub failure on one issue is retried next tick and does not block the others', async () => {
   const t = setup();
   await t.bridge.onMessage(dad('M1'));

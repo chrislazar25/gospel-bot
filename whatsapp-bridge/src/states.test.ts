@@ -27,9 +27,14 @@ test('closed as completed is merged whatever the labels say', () => {
   assert.equal(stateOf({ state: 'closed', stateReason: 'completed', labels: [] }), 'merged');
 });
 
-test('closed for another reason follows the labels', () => {
-  assert.equal(stateOf({ state: 'closed', stateReason: 'not_planned', labels: ['benny:other'] }), 'other');
-  assert.equal(stateOf({ state: 'closed', stateReason: null, labels: [] }), 'new');
+test('closed for another reason is closed whatever the labels say', () => {
+  assert.equal(stateOf({ state: 'closed', stateReason: 'not_planned', labels: ['benny:other'] }), 'closed');
+  assert.equal(stateOf({ state: 'closed', stateReason: 'duplicate', labels: [] }), 'closed');
+  assert.equal(stateOf({ state: 'closed', stateReason: null, labels: [] }), 'closed');
+});
+
+test('only merged and closed are terminal', () => {
+  assert.deepEqual(STATES.filter((s) => TABLE[s].terminal), ['merged', 'closed']);
 });
 
 test('an open issue is never merged', () => {
