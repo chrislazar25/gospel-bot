@@ -18,20 +18,21 @@ const photo = (id: string, caption = '', bytes = Buffer.from('jpeg-bytes')) =>
 const voiceNote = (id: string) => dad(id, '', GROUP, { kind: 'unsupported' });
 
 function setup() {
-  const calls: { kind: 'react' | 'reply'; key: Key; value: string }[] = [];
+  const calls: { kind: 'react' | 'reply'; key: Key; value: string; id?: string }[] = [];
+  const replyIds: string[] = [];
   const created: { title: string; body: string; labels: string[] }[] = [];
   const issues = new Map<number, Issue>();
   const uploaded: { path: string; size: number }[] = [];
   const comments: { issue: number; body: string }[] = [];
   const labelled: { issue: number; label: string }[] = [];
-  const faults = { create: false, createLost: false, get: new Set<number>(), reply: false, upload: false };
-  let botId = 0;
+  const faults = { create: false, createLost: false, get: new Set<number>(), reply: false, replyLost: false, upload: false };
   const wa: Whatsapp = {
     async react(key, emoji) { calls.push({ kind: 'react', key, value: emoji }); },
-    async reply(key, text) {
+    async reply(key, text, id) {
       if (faults.reply) throw new Error('wa_down');
-      calls.push({ kind: 'reply', key, value: text });
-      return `BOT${++botId}`;
+      calls.push({ kind: 'reply', key, value: text, id });
+      replyIds.push(id);
+      if (faults.replyLost) throw new Error('wa_timeout');
     },
   };
   const github: Github = {
@@ -66,7 +67,7 @@ function setup() {
   const bridge = createBridge({ wa, github, store, groupJid: GROUP, log });
   const restart = (groupJid = GROUP) => createBridge({ wa, github, store: openStore(home), groupJid, log });
   const label = (n: number, ...labels: string[]) => { issues.get(n)!.labels = ['benny:report', ...labels]; };
-  return { bridge, restart, home, calls, created, uploaded, comments, labelled, issues, faults, store, logs, label };
+  return { bridge, restart, home, calls, replyIds, created, uploaded, comments, labelled, issues, faults, store, logs, label };
 }
 
 test('a new report creates one labelled issue, reacts with eyes and is remembered', async () => {
@@ -123,7 +124,7 @@ test('messages the bridge sent itself are never turned into reports', async () =
   await t.bridge.poll();
   const reply = t.calls.find((c) => c.kind === 'reply')!;
   assert.ok(reply);
-  await t.bridge.onMessage({ key: { remoteJid: GROUP, id: 'BOT1', fromMe: true }, text: reply.value, quotedId: 'M1', attachment: null });
+  await t.bridge.onMessage({ key: { remoteJid: GROUP, id: reply.id!, fromMe: true }, text: reply.value, quotedId: 'M1', attachment: null });
   assert.equal(t.created.length, 1);
   assert.equal(t.comments.length, 0);
 });
@@ -214,17 +215,62 @@ test('a GitHub failure on one issue is retried next tick and does not block the 
   assert.deepEqual(t.calls.map((c) => [c.key.id, c.value]), [['M2', '🔎'], ['M1', '🔎']]);
 });
 
-test('a failed reply leaves the state unapplied so the next tick retries', async () => {
+test('a failed reply is retried next tick with the same message id, and only once it succeeds is the state settled', async () => {
   const t = setup();
   await t.bridge.onMessage(dad('M1'));
   t.label(101, 'benny:pr');
   t.faults.reply = true;
   await t.bridge.poll();
-  assert.equal(t.store.entries()[0]![1].applied, 'new');
+  assert.equal(t.replyIds.length, 0);
   t.faults.reply = false;
   await t.bridge.poll();
-  assert.equal(t.store.entries()[0]![1].applied, 'pr');
+  await t.bridge.poll();
   assert.equal(t.calls.filter((c) => c.kind === 'reply').length, 1);
+  assert.deepEqual(t.store.entries()[0]![1].replies, t.replyIds);
+});
+
+test('a reply WhatsApp accepted but never confirmed is resent after a restart with the same id', async () => {
+  const t = setup();
+  await t.bridge.onMessage(dad('M1'));
+  t.label(101, 'benny:no-repro');
+  t.faults.replyLost = true;
+  await t.bridge.poll();
+  t.faults.replyLost = false;
+  const again = t.restart();
+  await again.poll();
+  await again.poll();
+  assert.equal(t.replyIds.length, 2);
+  assert.equal(t.replyIds[0], t.replyIds[1]);
+  assert.match(t.replyIds[0]!, /^3EB0[0-9A-F]{18}$/);
+  assert.deepEqual(openStore(t.home).entries()[0]![1].replies, [t.replyIds[0]]);
+  assert.equal(openStore(t.home).entries()[0]![1].applied, 'no-repro');
+});
+
+test('a terminal reply that was never confirmed is resent with the same id before the report is dropped', async () => {
+  const t = setup();
+  await t.bridge.onMessage(dad('M1'));
+  t.issues.set(101, { number: 101, state: 'closed', stateReason: 'completed', labels: [] });
+  t.faults.replyLost = true;
+  await t.bridge.poll();
+  assert.equal(t.store.entries().length, 1);
+  t.faults.replyLost = false;
+  await t.restart().poll();
+  assert.equal(t.replyIds.length, 2);
+  assert.equal(t.replyIds[0], t.replyIds[1]);
+  assert.equal(openStore(t.home).entries().length, 0);
+});
+
+test('asking the same question twice on one issue sends two distinct messages', async () => {
+  const t = setup();
+  await t.bridge.onMessage(dad('M1'));
+  t.label(101, 'benny:no-repro');
+  await t.bridge.poll();
+  t.label(101, 'benny:triage');
+  await t.bridge.poll();
+  t.label(101, 'benny:no-repro');
+  await t.bridge.poll();
+  assert.equal(t.replyIds.length, 2);
+  assert.notEqual(t.replyIds[0], t.replyIds[1]);
 });
 
 test('when GitHub is down a report is not remembered, not reacted to, and a retry can still create it', async () => {
@@ -332,7 +378,7 @@ test('a photo whose file already exists on GitHub still creates the issue', asyn
   }) as unknown as typeof fetch;
   const t = setup();
   const bridge = createBridge({
-    wa: { react: async () => {}, reply: async () => 'BOT1' }, github: createGithub({ token: 't', repo: 'o/r' }, request),
+    wa: { react: async () => {}, reply: async () => {} }, github: createGithub({ token: 't', repo: 'o/r' }, request),
     store: t.store, groupJid: GROUP, log: () => {},
   });
   await bridge.onMessage(photo('M1', 'again'));
@@ -385,7 +431,7 @@ const askedForMore = async (t: ReturnType<typeof setup>) => {
 test('a quote-reply to the bot question becomes a comment on that issue and asks for re-triage', async () => {
   const t = setup();
   await askedForMore(t);
-  await t.bridge.onMessage(quoting(dad('F1', 'It happened on my phone, call 555 123 4567'), 'BOT1'));
+  await t.bridge.onMessage(quoting(dad('F1', 'It happened on my phone, call 555 123 4567'), t.replyIds[0]!));
   assert.equal(t.created.length, 2);
   assert.equal(t.comments.length, 1);
   assert.equal(t.comments[0]!.issue, 101);
@@ -420,7 +466,7 @@ test('a quote of an unrelated message is still a new report', async () => {
 test('a follow-up photo is uploaded and embedded in the comment', async () => {
   const t = setup();
   await askedForMore(t);
-  await t.bridge.onMessage(quoting(photo('F1', 'here it is'), 'BOT1'));
+  await t.bridge.onMessage(quoting(photo('F1', 'here it is'), t.replyIds[0]!));
   assert.deepEqual(t.uploaded.map((u) => u.path), ['reports/F1.jpg']);
   assert.ok(t.comments[0]!.body.includes('![photo](https://raw.example/reports/F1.jpg)'));
   assert.equal(t.created.length, 2);
@@ -429,8 +475,8 @@ test('a follow-up photo is uploaded and embedded in the comment', async () => {
 test('a redelivered follow-up is commented once', async () => {
   const t = setup();
   await askedForMore(t);
-  await t.bridge.onMessage(quoting(dad('F1', 'detail'), 'BOT1'));
-  await t.bridge.onMessage(quoting(dad('F1', 'detail'), 'BOT1'));
+  await t.bridge.onMessage(quoting(dad('F1', 'detail'), t.replyIds[0]!));
+  await t.bridge.onMessage(quoting(dad('F1', 'detail'), t.replyIds[0]!));
   assert.equal(t.comments.length, 1);
 });
 
@@ -438,7 +484,7 @@ test('when the comment fails nothing is reacted to and the report is untouched',
   const t = setup();
   await askedForMore(t);
   t.faults.upload = true;
-  await t.bridge.onMessage(quoting(photo('F1', 'here'), 'BOT1'));
+  await t.bridge.onMessage(quoting(photo('F1', 'here'), t.replyIds[0]!));
   assert.equal(t.comments.length, 0);
   assert.equal(t.calls.length, 0);
   assert.equal(t.created.length, 2);
@@ -449,7 +495,7 @@ test('after a restart a quote-reply to an earlier bot question still lands on it
   const t = setup();
   await askedForMore(t);
   const again = t.restart();
-  await again.onMessage(quoting(dad('F1', 'after restart'), 'BOT1'));
+  await again.onMessage(quoting(dad('F1', 'after restart'), t.replyIds[0]!));
   await again.onMessage(quoting(dad('F2', 'quoting the report'), 'M2'));
   assert.deepEqual(t.comments.map((c) => c.issue), [101, 102]);
   assert.equal(t.created.length, 2);
@@ -463,5 +509,6 @@ test('a status reply keeps the earlier reply ids so every bot question stays quo
   await t.bridge.poll();
   t.label(101, 'benny:blocked');
   await t.bridge.poll();
-  assert.deepEqual(t.store.entries()[0]![1].replies, ['BOT1', 'BOT2']);
+  assert.equal(t.replyIds.length, 2);
+  assert.deepEqual(t.store.entries()[0]![1].replies, t.replyIds);
 });

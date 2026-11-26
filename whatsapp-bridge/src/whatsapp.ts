@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import makeWASocket, { Browsers, DisconnectReason, downloadMediaMessage, generateMessageIDV2, normalizeMessageContent, type proto, useMultiFileAuthState, type WAMessage } from 'baileys';
+import makeWASocket, { Browsers, DisconnectReason, downloadMediaMessage, normalizeMessageContent, type proto, useMultiFileAuthState, type WAMessage } from 'baileys';
 import qrcode from 'qrcode-terminal';
 import { z } from 'zod';
 import type { Attachment, Incoming, Whatsapp } from './bridge.js';
@@ -128,11 +128,8 @@ export async function connectWhatsapp(o: {
   return {
     ready,
     async react(key, emoji) { await timed(live().sendMessage(key.remoteJid, { react: { text: emoji, key: waKey(key) } })); },
-    async reply(key, text) {
-      const s = live();
-      const messageId = generateMessageIDV2(s.user?.id);
-      await timed(s.sendMessage(key.remoteJid, { text }, { quoted: { key: waKey(key), message: { conversation: '' } }, messageId }));
-      return messageId;
+    async reply(key, text, messageId) {
+      await timed(live().sendMessage(key.remoteJid, { text }, { quoted: { key: waKey(key), message: { conversation: '' } }, messageId }));
     },
     async groups() { return Object.values(await live().groupFetchAllParticipating()).map(({ id, subject }) => ({ id, subject })); },
     async createGroup(subject) { const { id, subject: name } = await timed(live().groupCreate(subject, [])); return { id, subject: name }; },

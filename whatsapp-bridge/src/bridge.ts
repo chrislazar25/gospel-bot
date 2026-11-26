@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { Github } from './github.js';
 import { type Log, why } from './log.js';
 import { followupBody, messageMarker, newIssue, type Photo, photoPath } from './report.js';
@@ -12,8 +13,11 @@ const CANT_OPEN = "I can't open voice notes, videos or view-once photos. Can you
 
 export interface Whatsapp {
   react(key: Key, emoji: string): Promise<void>;
-  reply(key: Key, text: string): Promise<string>;
+  reply(key: Key, text: string, messageId: string): Promise<void>;
 }
+
+// Same shape as Baileys' generateMessageIDV2 ('3EB0' + 18 hex digits), derived from the seed so a resend reuses the id.
+export const replyId = (seed: string) => '3EB0' + createHash('sha256').update(seed).digest('hex').toUpperCase().slice(0, 18);
 
 export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; groupJid: string; log: Log }) {
   const { wa, github, store, groupJid, log } = d;
@@ -75,7 +79,7 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
       handled.add(key.id);
       log('unsupported_media', { msg: key.id });
       await wa.react(key, '🤔').catch((e) => log('react_failed', { msg: key.id, error: why(e) }));
-      await wa.reply(key, BOT_PREFIX + CANT_OPEN).catch((e) => log('reply_failed', { msg: key.id, error: why(e) }));
+      await wa.reply(key, BOT_PREFIX + CANT_OPEN, replyId(`cant-open:${key.id}`)).catch((e) => log('reply_failed', { msg: key.id, error: why(e) }));
       return;
     }
     const thread = quotedId ? store.threadOf(quotedId) : undefined;
@@ -102,12 +106,19 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
     }
     try {
       const state = stateOf(await github.get(issue));
-      if (state === entry.applied) return;
+      if (state === entry.applied && !entry.sending) return;
+      // Saved before sending, so a retry after a timeout or a crash resends the same reply id instead of a new message.
+      const sending = entry.sending?.state === state
+        ? entry.sending
+        : { state, reply: TABLE[state].reply ? replyId(`${issue}:${state}:${entry.replies.length}`) : null };
+      const replies = sending.reply && !entry.replies.includes(sending.reply) ? [...entry.replies, sending.reply] : entry.replies;
+      store.set(issue, { ...entry, replies, sending });
       const { emoji, reply } = TABLE[state];
       await wa.react(entry.key, emoji);
-      const replies = reply ? [...entry.replies, await wa.reply(entry.key, BOT_PREFIX + reply)] : entry.replies;
+      if (reply && sending.reply) await wa.reply(entry.key, BOT_PREFIX + reply, sending.reply);
+      const { sending: _, ...rest } = entry;
       if (TABLE[state].terminal) store.delete(issue);
-      else store.set(issue, { key: entry.key, applied: state, replies });
+      else store.set(issue, { ...rest, applied: state, replies });
       log('state_applied', { issue, state });
     } catch (e) {
       log('poll_failed', { issue, error: why(e) });
