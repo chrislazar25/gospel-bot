@@ -10,7 +10,7 @@ A photo is uploaded to the `benny-media` branch of the repo under `reports/` and
 
 When someone quote-replies to a report or to one of the bridge's replies, the message becomes a comment on the same issue marked `<!-- wa-followup -->`. The bridge reacts with 👀. If the issue is in the `no-repro` state, it also adds the `benny:triage-again` label so the workflow triages it again. The bridge keeps the ids of its own replies in `reports.json` so this survives a restart.
 
-Every poll it reads each open report's issue and derives a state from its labels. When the state changes, it reacts to the original message with the state's emoji. Some states also get a short reply that quotes the message. A closed issue with state reason `completed` counts as merged. Any other closed issue counts as closed. The bridge replies once and then stops tracking it.
+Every poll it reads each open report's issue and derives a state from its labels. When the state changes, it reacts to the original message with the state's emoji. Some states also get a short reply that quotes the message. A closed issue with state reason `completed` counts as merged. Any other closed issue counts as closed. The bridge replies once and then stops tracking it. A stored report from a group other than `REPORT_GROUP_JID`, left over from a test group, is dropped without sending anything to that group, and the bridge logs `stale_group`.
 
 States, labels, emojis and replies live in one table in `src/states.ts`. Every bot reply starts with "🤖 ".
 

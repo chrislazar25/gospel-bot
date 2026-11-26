@@ -59,7 +59,7 @@ function setup() {
   const logs: { event: string; fields: object | undefined }[] = [];
   const log = (event: string, fields?: object) => logs.push({ event, fields });
   const bridge = createBridge({ wa, github, store, groupJid: GROUP, log });
-  const restart = () => createBridge({ wa, github, store: openStore(home), groupJid: GROUP, log });
+  const restart = (groupJid = GROUP) => createBridge({ wa, github, store: openStore(home), groupJid, log });
   const label = (n: number, ...labels: string[]) => { issues.get(n)!.labels = ['benny:report', ...labels]; };
   return { bridge, restart, home, calls, created, uploaded, comments, labelled, issues, faults, store, logs, label };
 }
@@ -91,6 +91,17 @@ test('messages from other chats and empty messages are ignored', async () => {
   await t.bridge.onMessage(dad('M2', '   \n '));
   assert.equal(t.created.length, 0);
   assert.equal(t.calls.length, 0);
+});
+
+test('after switching to another group, reports from the old group are dropped without messaging it', async () => {
+  const t = setup();
+  await t.bridge.onMessage(dad('M1'));
+  t.calls.length = 0;
+  t.label(101, 'benny:pr');
+  await t.restart('777@g.us').poll();
+  assert.deepEqual(t.calls, []);
+  assert.deepEqual(openStore(t.home).entries(), []);
+  assert.ok(t.logs.some((l) => l.event === 'stale_group'));
 });
 
 test("the owner's own manual message is accepted", async () => {

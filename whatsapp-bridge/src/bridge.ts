@@ -74,6 +74,11 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
   const check = async (issue: number) => {
     const entry = store.entries().find(([n]) => n === issue)?.[1];
     if (!entry) return;
+    if (entry.key.remoteJid !== groupJid) {
+      store.delete(issue);
+      log('stale_group', { issue });
+      return;
+    }
     try {
       const state = stateOf(await github.get(issue));
       if (state === entry.applied) return;
