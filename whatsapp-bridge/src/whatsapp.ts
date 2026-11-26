@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import makeWASocket, { Browsers, DisconnectReason, downloadMediaMessage, generateMessageIDV2, normalizeMessageContent, useMultiFileAuthState, type WAMessage } from 'baileys';
+import makeWASocket, { Browsers, DisconnectReason, downloadMediaMessage, generateMessageIDV2, normalizeMessageContent, type proto, useMultiFileAuthState, type WAMessage } from 'baileys';
 import qrcode from 'qrcode-terminal';
 import { z } from 'zod';
 import type { Attachment, Incoming, Whatsapp } from './bridge.js';
@@ -26,7 +26,21 @@ const isViewOnce = (c: Content, depth = 0): boolean => !!c && depth < 6 && (
   Object.values(c).some((v) => typeof v === 'object' && v !== null && 'message' in v && isViewOnce(v.message as Content, depth + 1))
 );
 
-export function toIncoming(m: WAMessage): Incoming | undefined {
+// Baileys fetches https://<host of url><directPath> when directPath is set (host defaults to mmg.whatsapp.net), else url itself.
+const fromWhatsappServers = ({ url, directPath }: { url?: string | null; directPath?: string | null }) => {
+  if ((!url && !directPath) || (directPath && !directPath.startsWith('/'))) return false;
+  if (!url) return true;
+  const u = URL.parse(url);
+  return !!u && u.protocol === 'https:' && u.hostname.endsWith('.whatsapp.net') && !u.port && !u.username && !u.password;
+};
+
+// Passes Baileys only the checked fields. Other keys in the message, or a missing url (which makes Baileys fall back to
+// thumbnailDirectPath), would fetch something the check never saw.
+const downloadChecked = (key: WAMessage['key'], i: proto.Message.IImageMessage) => downloadMediaMessage(
+  { key, message: { imageMessage: { url: i.url ?? null, directPath: i.directPath ?? null, mediaKey: i.mediaKey ?? null } } }, 'buffer', {},
+);
+
+export function toIncoming(m: WAMessage, log: Log): Incoming | undefined {
   const { remoteJid, id, participant, fromMe } = m.key;
   if (!remoteJid || !id) return undefined;
   const key = { remoteJid, id, ...(participant ? { participant } : {}), fromMe: !!fromMe };
@@ -34,9 +48,11 @@ export function toIncoming(m: WAMessage): Incoming | undefined {
   const c = normalizeMessageContent(m.message);
   const image = c?.imageMessage;
   const text = c?.conversation || c?.extendedTextMessage?.text || image?.caption || c?.videoMessage?.caption || '';
-  const attachment: Attachment | null = image
-    ? { kind: 'image', mimetype: image.mimetype || 'image/jpeg', download: () => downloadMediaMessage(m, 'buffer', {}) }
-    : c?.audioMessage || c?.videoMessage || c?.documentMessage || c?.stickerMessage ? { kind: 'unsupported' } : null;
+  const checked = image && fromWhatsappServers(image) ? image : undefined;
+  if (image && !checked) log('media_url_rejected', { msg: id });
+  const attachment: Attachment | null = checked
+    ? { kind: 'image', mimetype: checked.mimetype || 'image/jpeg', download: () => downloadChecked(m.key, checked) }
+    : image || c?.audioMessage || c?.videoMessage || c?.documentMessage || c?.stickerMessage ? { kind: 'unsupported' } : null;
   if (!text && !attachment) return undefined;
   const quotedId = c?.extendedTextMessage?.contextInfo?.stanzaId || image?.contextInfo?.stanzaId || null;
   return { key, text, quotedId, attachment };
@@ -74,7 +90,7 @@ export async function connectWhatsapp(o: {
     s.ev.on('creds.update', () => { void saveCreds().catch((e) => o.log('creds_save_failed', { error: why(e) })); });
     s.ev.on('messages.upsert', ({ messages, type }) => {
       if (type !== 'notify') return;
-      for (const m of messages) { const i = toIncoming(m); if (i) o.onMessage?.(i); }
+      for (const m of messages) { const i = toIncoming(m, o.log); if (i) o.onMessage?.(i); }
     });
     s.ev.on('connection.update', async (u) => {
       if (u.qr && !state.creds.registered) {

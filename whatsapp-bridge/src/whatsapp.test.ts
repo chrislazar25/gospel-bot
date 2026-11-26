@@ -6,45 +6,48 @@ import test, { mock } from 'node:test';
 import makeWASocket, { DisconnectReason, type WAMessage } from 'baileys';
 import { connectWhatsapp, toIncoming } from './whatsapp.js';
 
+const incoming = (m: WAMessage) => toIncoming(m, () => {});
+
 const key = { remoteJid: '120363@g.us', id: 'M1', participant: '15551230000@lid', fromMe: false };
+const media = { url: 'https://mmg.whatsapp.net/v/t62/abc?ccb=11', directPath: '/v/t62/abc?ccb=11' };
 const msg = (message: NonNullable<WAMessage['message']>): WAMessage => ({ key, message });
 
 test('plain, extended, image and video text all become reports', () => {
   for (const m of [
     { conversation: 'a' }, { extendedTextMessage: { text: 'a' } }, { imageMessage: { caption: 'a' } }, { videoMessage: { caption: 'a' } },
-  ]) assert.equal(toIncoming(msg(m))?.text, 'a');
-  assert.equal(toIncoming(msg({ conversation: 'a' }))?.attachment, null);
+  ]) assert.equal(incoming(msg(m))?.text, 'a');
+  assert.equal(incoming(msg({ conversation: 'a' }))?.attachment, null);
 });
 
 test('disappearing-message wrappers are unwrapped', () => {
-  assert.equal(toIncoming(msg({ ephemeralMessage: { message: { conversation: 'a' } } }))?.text, 'a');
+  assert.equal(incoming(msg({ ephemeralMessage: { message: { conversation: 'a' } } }))?.text, 'a');
 });
 
 test('reactions, protocol messages and empty text are skipped', () => {
-  assert.equal(toIncoming(msg({ reactionMessage: { text: '👍', key } })), undefined);
-  assert.equal(toIncoming(msg({ protocolMessage: { type: 0 } })), undefined);
-  assert.equal(toIncoming(msg({ audioMessage: {} }))?.attachment?.kind, 'unsupported');
-  assert.equal(toIncoming(msg({ conversation: '' })), undefined);
-  assert.equal(toIncoming({ key }), undefined);
+  assert.equal(incoming(msg({ reactionMessage: { text: '👍', key } })), undefined);
+  assert.equal(incoming(msg({ protocolMessage: { type: 0 } })), undefined);
+  assert.equal(incoming(msg({ audioMessage: {} }))?.attachment?.kind, 'unsupported');
+  assert.equal(incoming(msg({ conversation: '' })), undefined);
+  assert.equal(incoming({ key }), undefined);
 });
 
 test('the key keeps the sender only when there is one', () => {
   const { participant: _, ...direct } = key;
-  assert.deepEqual(toIncoming({ key: { ...direct, fromMe: true }, message: { conversation: 'a' } })?.key, { remoteJid: key.remoteJid, id: 'M1', fromMe: true });
+  assert.deepEqual(incoming({ key: { ...direct, fromMe: true }, message: { conversation: 'a' } })?.key, { remoteJid: key.remoteJid, id: 'M1', fromMe: true });
 });
 
 test('an image becomes an image attachment with its caption as text', () => {
-  const i = toIncoming(msg({ imageMessage: { caption: 'look', mimetype: 'image/png' } }))!;
+  const i = incoming(msg({ imageMessage: { ...media, caption: 'look', mimetype: 'image/png' } }))!;
   assert.equal(i.text, 'look');
   assert.ok(i.attachment?.kind === 'image' && i.attachment.mimetype === 'image/png');
-  const bare = toIncoming(msg({ imageMessage: {} }))!;
+  const bare = incoming(msg({ imageMessage: media }))!;
   assert.equal(bare.text, '');
   assert.ok(bare.attachment?.kind === 'image' && bare.attachment.mimetype === 'image/jpeg');
 });
 
 test('voice notes, videos, documents and stickers are unsupported attachments', () => {
   for (const m of [{ audioMessage: {} }, { videoMessage: {} }, { documentMessage: {} }, { stickerMessage: {} }])
-    assert.deepEqual(toIncoming(msg(m)), { key, text: '', quotedId: null, attachment: { kind: 'unsupported' } });
+    assert.deepEqual(incoming(msg(m)), { key, text: '', quotedId: null, attachment: { kind: 'unsupported' } });
 });
 
 test('view-once media is never an image attachment and its caption is dropped', () => {
@@ -58,20 +61,57 @@ test('view-once media is never an image attachment and its caption is dropped', 
     { videoMessage: { caption: 'clip', viewOnce: true } },
     { ephemeralMessage: { message: { viewOnceMessageV2: { message: { imageMessage: image } } } } },
     { ephemeralMessage: { message: { imageMessage: { ...image, viewOnce: true } } } },
-  ]) assert.deepEqual(toIncoming(msg(m)), unsupported, JSON.stringify(m));
+  ]) assert.deepEqual(incoming(msg(m)), unsupported, JSON.stringify(m));
 });
 
 test('a photo quoting a view-once message is still an ordinary photo', () => {
   const quoted = { viewOnceMessageV2: { message: { imageMessage: { viewOnce: true } } } };
-  const i = toIncoming(msg({ imageMessage: { caption: 'see', contextInfo: { stanzaId: 'Q1', quotedMessage: quoted } } }))!;
+  const i = incoming(msg({ imageMessage: { ...media, caption: 'see', contextInfo: { stanzaId: 'Q1', quotedMessage: quoted } } }))!;
   assert.equal(i.attachment?.kind, 'image');
 });
 
+test('an image is downloaded only from a WhatsApp https host and an absolute direct path', () => {
+  const kind = (image: object) => {
+    const events: string[] = [];
+    const k = toIncoming(msg({ imageMessage: { caption: 'look', ...image } }), (e) => events.push(e))?.attachment?.kind;
+    assert.deepEqual(events, k === 'image' ? [] : ['media_url_rejected'], JSON.stringify(image));
+    return k;
+  };
+  assert.equal(kind(media), 'image');
+  assert.equal(kind({ url: media.url }), 'image');
+  assert.equal(kind({ directPath: media.directPath }), 'image');
+  assert.equal(kind({ url: 'https://media-lhr8-1.cdn.whatsapp.net/v/x', directPath: media.directPath }), 'image');
+  for (const bad of [
+    {}, { url: 'http://mmg.whatsapp.net/x' }, { url: 'https://169.254.169.254/latest' }, { url: 'https://localhost/x', directPath: '/x' },
+    { url: 'https://whatsapp.net.evil.com/x' }, { url: 'https://evilwhatsapp.net/x' }, { url: 'https://mmg.whatsapp.net:8443/x' },
+    { url: 'https://user@mmg.whatsapp.net/x' }, { url: 'not a url', directPath: '/x' }, { directPath: '@10.0.0.1/x' }, { url: media.url, directPath: '.evil.com/x' },
+  ]) assert.equal(kind(bad), 'unsupported');
+});
+
+test('the download fetches exactly the checked location, never another field of the message', async () => {
+  const fetched: string[] = [];
+  const fetch = mock.method(globalThis, 'fetch', async (url: string) => { fetched.push(String(url)); return new Response('', { status: 404 }); });
+  try {
+    const mediaKey = new Uint8Array(32);
+    for (const [image, expected] of [
+      [{ ...media, mediaKey, thumbnailDirectPath: '@169.254.169.254/x' }, `https://mmg.whatsapp.net${media.directPath}`],
+      [{ url: media.url, mediaKey, thumbnailDirectPath: '@169.254.169.254/x' }, media.url],
+      [{ url: 'https://media-lhr8-1.cdn.whatsapp.net/v/x', directPath: '/d', mediaKey }, 'https://media-lhr8-1.cdn.whatsapp.net/d'],
+    ] as const) {
+      const message = { videoMessage: { url: 'https://169.254.169.254/evil', mediaKey }, imageMessage: image };
+      const a = incoming(msg(message))?.attachment;
+      assert.ok(a?.kind === 'image');
+      await assert.rejects(a.download());
+      assert.equal(fetched.pop(), expected);
+    }
+  } finally { fetch.mock.restore(); }
+});
+
 test('the quoted message id comes from the text or image context', () => {
-  assert.equal(toIncoming(msg({ extendedTextMessage: { text: 'a', contextInfo: { stanzaId: 'BOT1' } } }))?.quotedId, 'BOT1');
-  assert.equal(toIncoming(msg({ imageMessage: { caption: 'a', contextInfo: { stanzaId: 'BOT2' } } }))?.quotedId, 'BOT2');
-  assert.equal(toIncoming(msg({ extendedTextMessage: { text: 'a' } }))?.quotedId, null);
-  assert.equal(toIncoming(msg({ conversation: 'a' }))?.quotedId, null);
+  assert.equal(incoming(msg({ extendedTextMessage: { text: 'a', contextInfo: { stanzaId: 'BOT1' } } }))?.quotedId, 'BOT1');
+  assert.equal(incoming(msg({ imageMessage: { ...media, caption: 'a', contextInfo: { stanzaId: 'BOT2' } } }))?.quotedId, 'BOT2');
+  assert.equal(incoming(msg({ extendedTextMessage: { text: 'a' } }))?.quotedId, null);
+  assert.equal(incoming(msg({ conversation: 'a' }))?.quotedId, null);
 });
 
 function fakeSocket() {
