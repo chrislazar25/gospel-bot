@@ -18,17 +18,28 @@ const timed = <T>(p: Promise<T>) => {
 };
 const statusOf = (e: unknown) => z.object({ output: z.object({ statusCode: z.number() }) }).safeParse(e).data?.output.statusCode;
 
+type Content = WAMessage['message'];
+const VIEW_ONCE_WRAPPERS = ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension'] as const;
+// Recurses into every { message } wrapper (ephemeral, edited, ...) so a view-once nested inside another wrapper is still caught.
+const isViewOnce = (c: Content, depth = 0): boolean => !!c && depth < 6 && (
+  VIEW_ONCE_WRAPPERS.some((k) => c[k]) || !!(c.imageMessage?.viewOnce || c.videoMessage?.viewOnce || c.audioMessage?.viewOnce) ||
+  Object.values(c).some((v) => typeof v === 'object' && v !== null && 'message' in v && isViewOnce(v.message as Content, depth + 1))
+);
+
 export function toIncoming(m: WAMessage): Incoming | undefined {
   const { remoteJid, id, participant, fromMe } = m.key;
+  if (!remoteJid || !id) return undefined;
+  const key = { remoteJid, id, ...(participant ? { participant } : {}), fromMe: !!fromMe };
+  if (isViewOnce(m.message)) return { key, text: '', quotedId: null, attachment: { kind: 'unsupported' } };
   const c = normalizeMessageContent(m.message);
   const image = c?.imageMessage;
   const text = c?.conversation || c?.extendedTextMessage?.text || image?.caption || c?.videoMessage?.caption || '';
   const attachment: Attachment | null = image
     ? { kind: 'image', mimetype: image.mimetype || 'image/jpeg', download: () => downloadMediaMessage(m, 'buffer', {}) }
     : c?.audioMessage || c?.videoMessage || c?.documentMessage || c?.stickerMessage ? { kind: 'unsupported' } : null;
-  if (!remoteJid || !id || (!text && !attachment)) return undefined;
+  if (!text && !attachment) return undefined;
   const quotedId = c?.extendedTextMessage?.contextInfo?.stanzaId || image?.contextInfo?.stanzaId || null;
-  return { key: { remoteJid, id, ...(participant ? { participant } : {}), fromMe: !!fromMe }, text, quotedId, attachment };
+  return { key, text, quotedId, attachment };
 }
 
 const waKey = (k: Key) => ({ remoteJid: k.remoteJid, id: k.id, fromMe: k.fromMe, ...(k.participant ? { participant: k.participant } : {}) });

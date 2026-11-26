@@ -8,7 +8,7 @@ export type Attachment = { kind: 'image'; mimetype: string; download(): Promise<
 export type Incoming = { key: Key; text: string; quotedId: string | null; attachment: Attachment | null };
 
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
-const CANT_OPEN = "I can't open voice notes or videos yet. Can you type out what happened?";
+const CANT_OPEN = "I can't open voice notes, videos or view-once photos. Can you type out what happened, or send a normal photo?";
 
 export interface Whatsapp {
   react(key: Key, emoji: string): Promise<void>;

@@ -308,7 +308,7 @@ test('a voice note or video without text gets a thinking face and a typed-answer
   assert.equal(t.store.entries().length, 0);
   assert.deepEqual(t.calls.map((c) => [c.kind, c.value, c.key.id]), [
     ['react', '🤔', 'V1'],
-    ['reply', "🤖 I can't open voice notes or videos yet. Can you type out what happened?", 'V1'],
+    ['reply', "🤖 I can't open voice notes, videos or view-once photos. Can you type out what happened, or send a normal photo?", 'V1'],
   ]);
 });
 

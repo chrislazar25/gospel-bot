@@ -47,6 +47,26 @@ test('voice notes, videos, documents and stickers are unsupported attachments', 
     assert.deepEqual(toIncoming(msg(m)), { key, text: '', quotedId: null, attachment: { kind: 'unsupported' } });
 });
 
+test('view-once media is never an image attachment and its caption is dropped', () => {
+  const image = { caption: 'my number is on screen', mimetype: 'image/png', url: 'https://mmg.whatsapp.net/x', directPath: '/x' };
+  const unsupported = { key, text: '', quotedId: null, attachment: { kind: 'unsupported' } };
+  for (const m of [
+    { viewOnceMessage: { message: { imageMessage: image } } },
+    { viewOnceMessageV2: { message: { imageMessage: image } } },
+    { viewOnceMessageV2Extension: { message: { imageMessage: image } } },
+    { imageMessage: { ...image, viewOnce: true } },
+    { videoMessage: { caption: 'clip', viewOnce: true } },
+    { ephemeralMessage: { message: { viewOnceMessageV2: { message: { imageMessage: image } } } } },
+    { ephemeralMessage: { message: { imageMessage: { ...image, viewOnce: true } } } },
+  ]) assert.deepEqual(toIncoming(msg(m)), unsupported, JSON.stringify(m));
+});
+
+test('a photo quoting a view-once message is still an ordinary photo', () => {
+  const quoted = { viewOnceMessageV2: { message: { imageMessage: { viewOnce: true } } } };
+  const i = toIncoming(msg({ imageMessage: { caption: 'see', contextInfo: { stanzaId: 'Q1', quotedMessage: quoted } } }))!;
+  assert.equal(i.attachment?.kind, 'image');
+});
+
 test('the quoted message id comes from the text or image context', () => {
   assert.equal(toIncoming(msg({ extendedTextMessage: { text: 'a', contextInfo: { stanzaId: 'BOT1' } } }))?.quotedId, 'BOT1');
   assert.equal(toIncoming(msg({ imageMessage: { caption: 'a', contextInfo: { stanzaId: 'BOT2' } } }))?.quotedId, 'BOT2');
