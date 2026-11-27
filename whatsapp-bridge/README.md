@@ -4,7 +4,7 @@ This bridge turns problem reports from one WhatsApp group into GitHub issues. It
 
 ## What it does
 
-The bridge links to a WhatsApp number as a linked device using Baileys. It watches one group. Messages sent while the Mac was offline arrive when it reconnects. The bridge records when it was last connected in `$BRIDGE_HOME/last-seen.json`, on every message it takes and every heartbeat, but only once the connection has stayed open for 5 minutes. Offline messages arrive right after connecting, so a restart during that delivery still sees the original outage. On reconnect it takes messages sent since 10 minutes before that time, or in the last 24 hours if that reaches further back, and never any older than 14 days. It applies the same group, bot-reply and ledger checks as live messages. Each text message becomes an issue in the GitHub repo, labelled `benny:report` and `benny:new`. The bridge reacts to the message with 👀.
+The bridge links to a WhatsApp number as a linked device using Baileys. It watches one group. Messages sent while the Mac was offline arrive when it reconnects. The bridge accepts offline messages sent after the replay start, up to 14 days back. On first run it saves that start in `$BRIDGE_HOME/replay-start.json`. It uses the previous day on a fresh install and preserves the eligible replay window from `last-seen.json` on upgrade. The saved start stays fixed so a restart during backlog processing still accepts eligible reports. It applies the same group, bot-reply and ledger checks as live messages. Each text message becomes an issue in the GitHub repo, labelled `benny:report` and `benny:new`. The bridge reacts to the message with 👀.
 
 A photo is uploaded to the `benny-media` branch of the repo under `reports/` and embedded in the issue. Photos over 10 MB are noted instead of uploaded. The bridge downloads a photo only from an `https` host under `whatsapp.net`. A photo that points anywhere else is treated like a voice note, and the bridge logs `media_url_rejected`. The bridge fetches the photo itself rather than through Baileys, because Baileys follows redirects to any host. It refuses redirects, gives up after 60 seconds, and decrypts the photo the way Baileys does. Voice notes and videos without text get a 🤔 and a reply asking for a typed description. They do not become issues. View-once photos and videos get the same reply even with a caption. The bridge never downloads or uploads them, because the sender asked for them not to be kept. The token needs contents write access for the upload.
 
@@ -25,7 +25,7 @@ Phone-like numbers are removed from issue titles, bodies and comments, including
 - `GITHUB_TOKEN` is required. It needs permission to create and read issues and to write contents on the `benny-media` branch.
 - `GITHUB_REPO` defaults to `chrislazar25/gospel-bot`.
 - `REPORT_GROUP_JID` is required to run. Find it with `--list-groups`.
-- `BRIDGE_HOME` defaults to `~/.gospel-bridge`. It holds the WhatsApp session in `auth/`, the report map and message ledger in `reports.json`, and the time the bridge was last connected in `last-seen.json`.
+- `BRIDGE_HOME` defaults to `~/.gospel-bridge`. It holds the WhatsApp session in `auth/`, the report map and message ledger in `reports.json`, and the offline replay start in `replay-start.json`.
 - `PAIR_PHONE` is optional. Digits only, with country code. When set, linking uses a pairing code instead of a QR.
 - `POLL_SECONDS` defaults to 60. It sets the poll interval and the heartbeat interval.
 
