@@ -266,20 +266,50 @@ test('an outage longer than 14 days takes only the last 14 days of reports', asy
   assert.deepEqual(c.received, ['THIRTEEN_DAYS']);
 });
 
-test('the bridge records when it was last connected, privately, on each message and each heartbeat', async () => {
+const MINUTE = 60000;
+
+test('the bridge records when it was last connected, privately, once connected for 5 minutes, on each message and heartbeat', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
   const home = newHome();
   const file = join(home, 'last-seen.json');
   const seenAt = () => Date.parse(JSON.parse(readFileSync(file, 'utf8')).lastSeenAt);
+  const live = () => ({ key, message: { conversation: 'a' }, messageTimestamp: Math.floor(Date.now() / 1000) });
   const c = await connect(false, undefined, home);
   c.wa.markSeen();
   assert.ok(!existsSync(file), 'not while disconnected');
   await c.emit({ connection: 'open' });
-  c.upsert({ type: 'notify', messages: [{ key, message: { conversation: 'a' }, messageTimestamp: Math.floor(Date.now() / 1000) }] });
-  assert.ok(Date.now() - seenAt() < 5000);
-  assert.equal(statSync(file).mode & 0o777, 0o600);
-  lastSeen(home, DAY);
+  c.upsert({ type: 'notify', messages: [live()] });
+  t.mock.timers.tick(5 * MINUTE - 1);
+  c.upsert({ type: 'notify', messages: [live()] });
   c.wa.markSeen();
-  assert.ok(Date.now() - seenAt() < 5000);
+  assert.ok(!existsSync(file), 'not before the connection has held 5 minutes');
+  t.mock.timers.tick(1);
+  c.upsert({ type: 'notify', messages: [live()] });
+  assert.equal(seenAt(), Date.now());
+  assert.equal(statSync(file).mode & 0o777, 0o600);
+  t.mock.timers.tick(MINUTE);
+  c.wa.markSeen();
+  assert.equal(seenAt(), Date.now());
+  await c.emit({ connection: 'close', lastDisconnect: { error: { output: { statusCode: DisconnectReason.loggedOut } } } });
+  t.mock.timers.tick(MINUTE);
+  c.wa.markSeen();
+  assert.equal(seenAt(), Date.now() - MINUTE, 'not after the connection closes');
+});
+
+test('a restart within 5 minutes of reconnecting after a long outage still takes reports sent during the outage', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+  const home = newHome();
+  lastSeen(home, 3 * DAY);
+  const at = (id: string, messageTimestamp: number) => ({ key: { ...key, id }, message: { conversation: 'a' }, messageTimestamp });
+  const before = await connect(false, undefined, home);
+  await before.emit({ connection: 'open' });
+  before.upsert({ type: 'notify', messages: [at('UNRELATED', Math.floor(Date.now() / 1000))] });
+  t.mock.timers.tick(4 * MINUTE);
+  before.wa.markSeen();
+  const after = await connect(false, undefined, home);
+  await after.emit({ connection: 'open' });
+  after.upsert({ type: 'append', messages: [at('LATE_REPORT', Math.floor(Date.now() / 1000) - 2 * DAY)] });
+  assert.deepEqual(after.received, ['LATE_REPORT']);
 });
 
 test('the socket never marks the owner online and never syncs history', async () => {
