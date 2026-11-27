@@ -34,7 +34,8 @@ Read these before deciding, as far as the report needs them.
 Write down, for yourself:
 
 - What the reporter expected and what they saw.
-- Which IST date or dates it concerns. "Today" means the IST date the report was opened, which the input file gives. The message for a date sends at 00:30 IST on that date, so a report opened early in the IST morning can mean that day's message.
+- Which IST date or dates it concerns. Use the date the reporter explicitly names. "Today" means the IST date the report was opened, which the input file gives. The message for a date sends at 00:30 IST on that date, so a report opened early in the IST morning can mean that day's message. The opened timestamp alone is not evidence that pasted text was delivered on that date.
+- Whether the reporter describes something they received or proposes content for a date. "This should be Dec 5th message" proposes content for Dec 5. It does not say that the text was delivered on the date the report opened. Do not turn a proposed message into a wrong-date delivery claim without evidence from the report or its screenshots.
 - Whether it is about the message text, the delivery (missing, late, twice), the bridge's emoji or replies, or something else.
 
 If the report is unclear, use the follow-ups before deciding it lacks detail.
