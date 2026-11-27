@@ -1,21 +1,23 @@
 #!/usr/bin/env bash
 # Writes one Benny report and its context as Markdown, for Claude to read as data.
-# Usage: context.sh ISSUE_NUMBER OUTPUT_DIR
+# Usage: context.sh ISSUE_NUMBER OUTPUT_DIR [triage|fix]
 # Writes OUTPUT_DIR/report.md, and OUTPUT_DIR/photos/ with the photos the reporter sent.
 # Needs GH_TOKEN and GITHUB_REPOSITORY.
 set -euo pipefail
 
 issue="$1"
 out="$2"
+stage="${3:-triage}"
 owner=chrislazar25
 mkdir -p "$out"
 
 gh api "repos/$GITHUB_REPOSITORY/issues/$issue" > "$out/issue.json"
 # Only the owner's account writes reports and follow-ups. Anyone can comment on a public
 # issue, so other people's comments never reach Claude, as text, as photos or as a file here.
+# Only the fix stage uses previous Benny verdicts as evidence.
 gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$issue/comments?per_page=100" |
-	jq -s --arg owner "$owner" \
-		'[add // [] | .[] | select(.user.login == $owner or (.user.login == "github-actions[bot]" and (.body | contains("<!-- benny:"))))]' \
+	jq -s --arg owner "$owner" --arg stage "$stage" \
+		'[add // [] | .[] | select(.user.login == $owner or ($stage == "fix" and .user.login == "github-actions[bot]" and (.body | contains("<!-- benny:"))))]' \
 		> "$out/notes.json"
 gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=open&labels=benny%3Areport&creator=$owner&per_page=100" |
 	jq -s --argjson n "$issue" '[add // [] | .[] | select(.pull_request == null and .number != $n)]' > "$out/open.json"
@@ -31,7 +33,7 @@ mkdir -p "$out/photos"
 			{ rm -f "$photo"; echo "::warning::Could not download $url, so Claude goes on without it."; }
 	done
 
-jq -r -n --arg owner "$owner" \
+jq -r -n --arg owner "$owner" --arg stage "$stage" \
 	--slurpfile issue "$out/issue.json" --slurpfile notes "$out/notes.json" --slurpfile open "$out/open.json" '
 	def ist: fromdateiso8601 + 19800 | strftime("%Y-%m-%d %H:%M IST");
 	def labels: [.labels[].name] | join(", ");
@@ -42,7 +44,7 @@ jq -r -n --arg owner "$owner" \
 	"- Labels: \($i | labels)",
 	"- Title: \($i.title)", "",
 	"## Report text", "", ($i.body // "(empty)"), "",
-	"## Follow-ups and earlier Benny notes", "",
+	(if $stage == "fix" then "## Follow-ups and earlier Benny notes" else "## Follow-ups" end), "",
 	($notes[0] | none_or("### \(if .user.login == $owner then "Follow-up" else "Earlier Benny note" end), \(.created_at | ist)", "", .body, "")),
 	"## Other open reports", "",
 	($open[0] | none_or("### #\(.number), opened \(.created_at | ist)", "", "- Labels: \(labels)", "- Title: \(.title)", "", ((.body // "") | .[0:800]), ""))
