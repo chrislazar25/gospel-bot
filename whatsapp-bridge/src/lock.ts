@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { realpathSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { connect, createServer, type Server } from 'node:net';
 import { ensurePrivateDir } from './store.js';
 
@@ -7,7 +7,9 @@ export type Lock =
   | { status: 'held'; port: number; release(): Promise<void> }
   | { status: 'already_running' | 'lock_port_taken'; port: number };
 
-export const lockPort = (resolvedHome: string) => 40000 + createHash('sha256').update(resolvedHome).digest().readUInt32BE(0) % 9000;
+// Device and inode name the folder itself, so case-insensitive spellings and symlinks of one home share a lock.
+export const homeId = (home: string) => { const { dev, ino } = statSync(home); return `${dev}:${ino}`; };
+export const lockPort = (id: string) => 40000 + createHash('sha256').update(id).digest().readUInt32BE(0) % 9000;
 
 const greeting = (home: string) => `gospel-bridge ${home}\n`;
 const HOST = '127.0.0.1';
@@ -35,9 +37,9 @@ const ask = (port: number) => new Promise<string | null>((resolve) => {
  */
 export async function acquireLock(home: string): Promise<Lock> {
   ensurePrivateDir(home);
-  const resolved = realpathSync(home);
-  const port = lockPort(resolved);
-  const hello = greeting(resolved);
+  const id = homeId(home);
+  const port = lockPort(id);
+  const hello = greeting(id);
   const server = createServer((c) => { c.on('error', () => {}); c.end(hello); });
   server.unref();
   for (let attempt = 0; attempt < 3; attempt++) {

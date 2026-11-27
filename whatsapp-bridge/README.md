@@ -68,7 +68,7 @@ The bridge is safe to run on a personal number. It never marks the owner online,
 
 It also exits with code 3 instead of reconnecting when WhatsApp reports that another session replaced this one (`wa_replaced`), refused the device (`wa_forbidden`) or found a multi-device mismatch (`wa_multidevice_mismatch`). Reconnecting there would make two clients fight over the owner's account. Find the other bridge or linked device before you start it again.
 
-Only one bridge process runs per `BRIDGE_HOME`. Every mode listens on a TCP port on 127.0.0.1 for as long as it runs. The port is `40000 + (sha256(resolved BRIDGE_HOME) mod 9000)`, below the 49152 where macOS and most systems start handing out temporary ports, where the resolved path has symlinks followed, so one home always maps to one port. If another bridge for the same home already holds it, the new one logs `already_running` and exits with code 2. That includes `--link`, `--list-groups` and `--create-group`, so stop the service first:
+Only one bridge process runs per `BRIDGE_HOME`. Every mode listens on a TCP port on 127.0.0.1 for as long as it runs. The port is `40000 + (sha256(device:inode of BRIDGE_HOME) mod 9000)`, below the 49152 where macOS and most systems start handing out temporary ports. Device and inode identify the folder itself, so symlinks and differently capitalised spellings of one home map to one port. If another bridge for the same home already holds it, the new one logs `already_running` and exits with code 2. That includes `--link`, `--list-groups` and `--create-group`, so stop the service first:
 
 ```sh
 launchctl bootout gui/$(id -u)/com.chrislazar.gospel-bridge
