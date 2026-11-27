@@ -192,6 +192,10 @@ jobs:
       issues: read
     env:
       ISSUE: ${{ github.event.issue.number }}
+    outputs:
+      outcome: ${{ steps.package.outputs.outcome }}
+      patch: ${{ steps.package.outputs.patch }}
+      withheld: ${{ steps.package.outputs.withheld }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -229,21 +233,30 @@ jobs:
             --allowedTools "Bash(git log:*)" "Bash(git show:*)" "Bash(git diff:*)" "Bash(git status)" "Bash(ls:*)" "Bash(node --test:*)" "Bash(npm run check --prefix local-lab)" "Bash(node local-lab/verify.mjs all)" "Bash(node local-lab/verify-runtime.mjs)" "Bash(node local-lab/verify-image.mjs)" "Bash(npm ci --prefix whatsapp-bridge)" "Bash(npm run check --prefix whatsapp-bridge)" "Bash(npm test --prefix whatsapp-bridge)" "WebFetch(domain:cpbjr.github.io)" "WebFetch(domain:bible.usccb.org)"
             --disallowedTools WebSearch "Bash(gh:*)" "Bash(curl:*)" "Bash(git push:*)" "Bash(git commit:*)" "Bash(git add:*)"
             --json-schema '{"type":"object","additionalProperties":false,"required":["outcome","reason","commit_message","pr_title","pr_body"],"properties":{"outcome":{"type":"string","enum":["pr","blocked"]},"reason":{"type":"string"},"commit_message":{"type":"string"},"pr_title":{"type":"string"},"pr_body":{"type":"string"}}}'
+      # An artifact on a public repository is downloadable by anyone, so the fix travels as job outputs.
+      # A consuming step prints its env in the public log, so the patch leaves only after a secret scan.
       - name: Package the fix
+        id: package
         env:
           OUTPUT: ${{ steps.claude.outputs.structured_output }}
         run: |
           dir="$RUNNER_TEMP/benny-fix"
           mkdir -p "$dir"
-          printf '%s' "$OUTPUT" > "$dir/outcome.json"
+          # Claude may have edited the scan, so it runs as it was on the commit Claude started from.
+          git show "$GITHUB_SHA:.github/benny/scan-secrets.sh" > "$dir/scan-secrets.sh"
           git add -A
           git diff --cached --binary > "$dir/fix.patch"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: benny-fix
-          path: ${{ runner.temp }}/benny-fix/
-          if-no-files-found: error
-          retention-days: 1
+          # GitHub caps a job's outputs at 1 MB, counting two bytes a character, so 256 KB leaves room after Base64.
+          if [[ ! -s "$dir/fix.patch" ]]; then
+            echo 'withheld=Claude reported a fix but changed no files.' >> "$GITHUB_OUTPUT"
+          elif (( $(wc -c < "$dir/fix.patch") > 262144 )); then
+            echo 'withheld=The fix is larger than 256 KB, which is too big for a focused draft.' >> "$GITHUB_OUTPUT"
+          elif ! bash "$dir/scan-secrets.sh"; then
+            echo 'withheld=The fix looks like it contains a secret, so Benny did not hand it on.' >> "$GITHUB_OUTPUT"
+          else
+            echo "patch=$(base64 < "$dir/fix.patch" | tr -d '\n')" >> "$GITHUB_OUTPUT"
+          fi
+          echo "outcome=$(printf '%s' "$OUTPUT" | base64 | tr -d '\n')" >> "$GITHUB_OUTPUT"
 
   publish:
     needs: [record, fix]
@@ -269,32 +282,44 @@ jobs:
         if: needs.fix.result == 'success'
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        if: needs.fix.result == 'success'
-        with:
-          name: benny-fix
-          path: ${{ runner.temp }}/benny
       - name: Read the outcome
         id: outcome
         if: needs.fix.result == 'success'
+        env:
+          OUTCOME_B64: ${{ needs.fix.outputs.outcome }}
         run: |
+          dir="$RUNNER_TEMP/benny"
+          mkdir -p "$dir"
+          blocked() { printf '%s\n' "$1" > "$dir/blocked.txt"; echo "::error::$1"; exit 1; }
+          # GitHub drops a job output that may contain a secret, so an empty one never arrived.
+          [[ -n "$OUTCOME_B64" ]] || blocked "Claude's outcome did not reach this job. GitHub withholds a job output that may contain a secret."
+          printf '%s' "$OUTCOME_B64" | base64 -d > "$dir/outcome.json"
           jq -e '(.outcome | IN("pr", "blocked")) and (.reason | type == "string" and length > 0)
-            and ([.commit_message, .pr_title, .pr_body] | all(type == "string"))' "$RUNNER_TEMP/benny/outcome.json" > /dev/null
-          echo "outcome=$(jq -r '.outcome' "$RUNNER_TEMP/benny/outcome.json")" >> "$GITHUB_OUTPUT"
+            and ([.commit_message, .pr_title, .pr_body] | all(type == "string"))' "$dir/outcome.json" > /dev/null
+          jq -r '.. | strings' "$dir/outcome.json" > "$dir/outcome.txt"
+          .github/benny/scan-secrets.sh "$dir/outcome.txt" ||
+            blocked "Claude's outcome looks like it contains a secret, so Benny did not publish it."
+          echo "outcome=$(jq -r '.outcome' "$dir/outcome.json")" >> "$GITHUB_OUTPUT"
       - name: Open the draft pull request
         if: steps.outcome.outputs.outcome == 'pr'
         env:
           BASE: ${{ github.event.repository.default_branch }}
+          PATCH_B64: ${{ needs.fix.outputs.patch }}
+          WITHHELD: ${{ needs.fix.outputs.withheld }}
         run: |
           dir="$RUNNER_TEMP/benny"
           blocked() { printf '%s\n' "$1" > "$dir/blocked.txt"; echo "::error::$1"; exit 1; }
-          [[ -s "$dir/fix.patch" ]] || blocked 'Claude reported a fix but changed no files.'
+          [[ -z "$WITHHELD" ]] || blocked "$WITHHELD"
+          [[ -n "$PATCH_B64" ]] || blocked 'The fix did not reach this job. GitHub withholds a job output that may contain a secret.'
+          printf '%s' "$PATCH_B64" | base64 -d > "$dir/fix.patch"
           git apply --index "$dir/fix.patch" || blocked 'The fix does not apply to the commit it was made on.'
           # Without rename detection, a moved file lists both its old and its new path.
           changed=$(git diff --cached --name-only --no-renames)
           [[ -n "$changed" ]] || blocked 'Claude reported a fix but changed no files.'
           forbidden=$(grep -E '^(infra|\.github|scripts/cloud|local-lab/migrations)/|(^|/)\.env|\.(tfvars|tfstate|pem|key)$' <<< "$changed" || true)
           [[ -z "$forbidden" ]] || blocked "The fix changes files Benny may not touch: $(paste -sd ' ' - <<< "$forbidden")."
+          # The check above refuses a change to .github/, so this scan is the one on the base commit.
+          .github/benny/scan-secrets.sh || blocked 'The fix looks like it contains a secret, so Benny did not publish it.'
 
           subject=$(jq -r '.commit_message' "$dir/outcome.json")
           grep -qE '^(fix|test|docs|content)(\([a-z0-9-]+\))?: .{1,60}$' <<< "$subject" || subject="fix: address WhatsApp report #$ISSUE"
