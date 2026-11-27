@@ -74,7 +74,7 @@ Only one bridge process runs per `BRIDGE_HOME`. Every mode takes `$BRIDGE_HOME/b
 launchctl bootout gui/$(id -u)/com.chrislazar.gospel-bridge
 ```
 
-A lock left by a process that died, or by a run before the last reboot, is replaced. The lock is removed when the process exits.
+A lock left by a process that died, or by a run before the last reboot, is replaced. The bridge moves the stale lock aside with one atomic rename and checks that the file it moved is the one it judged stale. If two bridges find the same stale lock at once, only one of them takes it. The lock is removed when the process exits.
 
 Exit codes:
 

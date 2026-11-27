@@ -35,6 +35,22 @@ test('a lock left by a dead process, a previous boot or a garbled write is repla
   }
 });
 
+test('two bridges that both find the same stale lock cannot both take it', () => {
+  const home = tmp();
+  acquireLock(home)!();
+  writeFileSync(join(home, 'bridge.lock'), JSON.stringify({ pid: 999999, boot }));
+  // The manual run reads the stale lock, and launchd's bridge takes it over before the manual run acts on what it read.
+  let launchd: (() => void) | undefined;
+  const manual = acquireLock(home, { pid: 1001, boot }, (h) => {
+    launchd ??= acquireLock(home, { pid: 1002, boot }, (stale) => stale.pid === 1001);
+    return h.pid === 1002;
+  });
+  assert.equal([manual, launchd].filter(Boolean).length, 1);
+  assert.equal(holderPid(home), launchd ? 1002 : 1001);
+  assert.deepEqual(readdirSync(home), ['bridge.lock']);
+  assert.equal(acquireLock(home, { pid: 1003, boot }, (h) => h.pid === 1001 || h.pid === 1002), undefined);
+});
+
 test('releasing never removes a lock another process has taken over', () => {
   const home = tmp();
   const release = acquireLock(home)!;
