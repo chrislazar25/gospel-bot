@@ -23,6 +23,21 @@ test('numbers formatted with Unicode spaces and dashes are removed from the titl
   }
 });
 
+const markedNumbers = [
+  '‎+44‎ 7700‎ 900123', '+1‏555‏123‏4567', '‪+33 6 12 34 56 78‬', '‫+1‮555‭1234567',
+  '⁦+49⁩ ⁦151⁩ ⁦1234⁩ ⁦5678⁩', '⁧555⁨123⁩4567', '+1﻿555﻿123﻿4567',
+  '555­123­4567', '+44 ‎7700 ‎900‎ 123', '5‎5‏5‎1‏2‎3‏4‎5‏6‎7',
+];
+
+test('numbers with bidi marks, isolates, BOM or soft hyphens between the digits are removed from the title, body and follow-up', () => {
+  for (const n of markedNumbers) {
+    for (const out of [issueTitle(`call ${n} now`), issueBody(`call ${n} now`, 'M1').split('<!--')[0]!, followupBody(`call ${n} now`).split('<!--')[0]!]) {
+      assert.ok(out.includes('[number removed]'), JSON.stringify(out));
+      assert.equal(out.replace(/\D/g, ''), '', JSON.stringify(out));
+    }
+  }
+});
+
 test('short numbers and verse references survive', () => {
   assert.match(issueBody('The reading for 2026-12 shows John 3:16 and 1234567 items', 'M1'), /John 3:16 and 1234567 items/);
 });

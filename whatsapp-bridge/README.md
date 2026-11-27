@@ -18,7 +18,7 @@ Each status reply gets a message id derived from the issue, the state and the nu
 
 States, labels, emojis and replies live in one table in `src/states.ts`. Every bot reply starts with "🤖 ".
 
-Phone-like numbers are removed from issue titles, bodies and comments, including numbers written with non-breaking spaces, Unicode dashes or fullwidth digits. The sender's WhatsApp ID stays in `$BRIDGE_HOME/reports.json` and never goes to GitHub.
+Phone-like numbers are removed from issue titles, bodies and comments, including numbers written with non-breaking spaces, Unicode dashes or fullwidth digits, and numbers with invisible format characters such as direction marks, isolates, a byte order mark or a soft hyphen between the digits. The sender's WhatsApp ID stays in `$BRIDGE_HOME/reports.json` and never goes to GitHub.
 
 ## Environment variables
 
