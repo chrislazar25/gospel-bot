@@ -68,7 +68,14 @@ fi
 
 if ! jq -cse '
   if any(.[]; .type == "error") then error("agent error")
-  else last(.[] | select(.type == "text") | .part.text) | fromjson
+  else
+    last(.[] | select(.type == "text") | .part.text)
+    | sub("\\r?\\n[ \\t]*```[ \\t\\r\\n]*$"; "")
+    | split("\n") as $lines
+    | [range(0; $lines | length) as $i
+       | select($lines[$i] | test("^\\s*\\{"))
+       | try ($lines[$i:] | join("\n") | fromjson) catch empty]
+    | if length == 1 then .[0] else error("expected one final JSON object") end
   end' "$dir/$stage.ndjson" > "$dir/$stage-result.json" 2>/dev/null ||
   ! jq -e "$schema" "$dir/$stage-result.json" > /dev/null 2>&1; then
   echo "::error::OpenCode did not return a valid Benny $stage result."
