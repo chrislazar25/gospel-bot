@@ -24,5 +24,6 @@ for file in "$@"; do
 	n=$((n + 1))
 done
 
-git -C "$scan/tree" add -A
+# The change may add an ignore rule that covers its own files, so no ignore rule may hide a file from the scanner.
+git -C "$scan/tree" -c core.excludesFile=/dev/null add -f -A
 (cd "$scan/tree" && node "$scan/check-secrets.mjs") > /dev/null 2>&1
