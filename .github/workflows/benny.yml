@@ -313,11 +313,16 @@ jobs:
           [[ -n "$PATCH_B64" ]] || blocked 'The fix did not reach this job. GitHub withholds a job output that may contain a secret.'
           printf '%s' "$PATCH_B64" | base64 -d > "$dir/fix.patch"
           git apply --index "$dir/fix.patch" || blocked 'The fix does not apply to the commit it was made on.'
+          protected='^(infra|\.github|scripts/cloud|local-lab/migrations)/|(^|/)\.env|\.(tfvars|tfstate|pem|key)$'
+          changed=() forbidden=()
+          # Git quotes an unusual name unless -z is given, and a quoted name would slip past the pattern.
           # Without rename detection, a moved file lists both its old and its new path.
-          changed=$(git diff --cached --name-only --no-renames)
-          [[ -n "$changed" ]] || blocked 'Claude reported a fix but changed no files.'
-          forbidden=$(grep -E '^(infra|\.github|scripts/cloud|local-lab/migrations)/|(^|/)\.env|\.(tfvars|tfstate|pem|key)$' <<< "$changed" || true)
-          [[ -z "$forbidden" ]] || blocked "The fix changes files Benny may not touch: $(paste -sd ' ' - <<< "$forbidden")."
+          while IFS= read -r -d '' path; do
+            changed+=("$path")
+            if [[ "$path" =~ $protected ]]; then forbidden+=("$path"); fi
+          done < <(git diff --cached --name-only -z --no-renames)
+          (( ${#changed[@]} )) || blocked 'Claude reported a fix but changed no files.'
+          (( ! ${#forbidden[@]} )) || blocked "The fix changes files Benny may not touch: ${forbidden[*]}."
           # The check above refuses a change to .github/, so this scan is the one on the base commit.
           .github/benny/scan-secrets.sh || blocked 'The fix looks like it contains a secret, so Benny did not publish it.'
 
