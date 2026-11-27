@@ -74,38 +74,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: .github/benny/context.sh "$ISSUE" "$RUNNER_TEMP/benny"
-      - name: Install Claude subprocess isolation dependency
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends bubblewrap
-          bwrap --version
+      - name: Install OpenCode
+        run: bash .github/benny/install-opencode.sh
       - name: Triage
-        id: claude
+        timeout-minutes: 25
         env:
-          # Best-effort removal of the Claude and GitHub tokens from commands Claude runs.
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1'
-        uses: anthropics/claude-code-action@4411a9e9b0283becf4b924f7bce360fd7756c78c # v1.0.290
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # The action puts this token in Claude's environment, so it is this job's read-only token.
-          github_token: ${{ github.token }}
-          prompt: |
-            Follow .github/benny/triage.md for issue #${{ github.event.issue.number }}.
-            The report and its context are in ${{ runner.temp }}/benny/report.md.
-          claude_args: |
-            --model sonnet
-            --permission-mode default
-            --add-dir ${{ runner.temp }}/benny
-            --allowedTools "Bash(git log:*)" "Bash(git show:*)" "Bash(git diff:*)" "Bash(git status)" "Bash(ls:*)" "Bash(node --test tests/content.test.js)" "WebFetch(domain:cpbjr.github.io)" "WebFetch(domain:bible.usccb.org)"
-            --disallowedTools Edit Write NotebookEdit WebSearch "Bash(gh:*)" "Bash(curl:*)" "Bash(git push:*)"
-            --json-schema '{"type":"object","additionalProperties":false,"required":["verdict","summary","duplicate_of","evidence"],"properties":{"verdict":{"type":"string","enum":["bug","other","no-repro"]},"summary":{"type":"string"},"duplicate_of":{"type":"integer"},"evidence":{"type":"string"}}}'
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+        run: bash .github/benny/run-opencode.sh triage
       - name: Hand over the verdict
         id: verdict
-        env:
-          OUTPUT: ${{ steps.claude.outputs.structured_output }}
         run: |
-          [[ -n "$OUTPUT" ]] || { echo '::error::Claude returned no verdict.'; exit 1; }
-          echo "verdict=$(printf '%s' "$OUTPUT" | base64 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+          bash .github/benny/scan-secrets.sh "$RUNNER_TEMP/benny/triage-result.json"
+          echo "verdict=$(base64 < "$RUNNER_TEMP/benny/triage-result.json" | tr -d '\n')" >> "$GITHUB_OUTPUT"
 
   record:
     needs: [start, triage]
@@ -200,7 +180,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      # No dependency cache: Claude runs code in this job, and a saved cache would carry it to other workflows.
+      # No dependency cache: Verification runs proposed code in this job, and a saved cache would carry it to other workflows.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
@@ -211,49 +191,31 @@ jobs:
           git switch -c "benny/issue-$ISSUE"
           .github/benny/context.sh "$ISSUE" "$RUNNER_TEMP/benny"
           npm ci --prefix local-lab
-      - name: Install Claude subprocess isolation dependency
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends bubblewrap
-          bwrap --version
+      - name: Install OpenCode
+        run: bash .github/benny/install-opencode.sh
       - name: Fix
-        id: claude
         timeout-minutes: 75
         env:
-          # Best-effort removal of the Claude and GitHub tokens from commands Claude runs.
-          CLAUDE_CODE_SUBPROCESS_ENV_SCRUB: '1'
-        uses: anthropics/claude-code-action@4411a9e9b0283becf4b924f7bce360fd7756c78c # v1.0.290
-        with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # The action puts this token in Claude's environment, so it is this job's read-only token.
-          github_token: ${{ github.token }}
-          prompt: |
-            Follow .github/benny/fix.md for issue #${{ github.event.issue.number }}.
-            The report, its follow-ups and the triage note are in ${{ runner.temp }}/benny/report.md.
-          claude_args: |
-            --model opus
-            --permission-mode acceptEdits
-            --add-dir ${{ runner.temp }}/benny
-            --allowedTools "Bash(git log:*)" "Bash(git show:*)" "Bash(git diff:*)" "Bash(git status)" "Bash(ls:*)" "Bash(node --test:*)" "Bash(npm run check --prefix local-lab)" "Bash(node local-lab/verify.mjs all)" "Bash(node local-lab/verify-runtime.mjs)" "Bash(node local-lab/verify-image.mjs)" "Bash(npm ci --prefix whatsapp-bridge)" "Bash(npm run check --prefix whatsapp-bridge)" "Bash(npm test --prefix whatsapp-bridge)" "WebFetch(domain:cpbjr.github.io)" "WebFetch(domain:bible.usccb.org)"
-            --disallowedTools WebSearch "Bash(gh:*)" "Bash(curl:*)" "Bash(git push:*)" "Bash(git commit:*)" "Bash(git add:*)"
-            --json-schema '{"type":"object","additionalProperties":false,"required":["outcome","reason","commit_message","pr_title","pr_body"],"properties":{"outcome":{"type":"string","enum":["pr","blocked"]},"reason":{"type":"string"},"commit_message":{"type":"string"},"pr_title":{"type":"string"},"pr_body":{"type":"string"}}}'
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+        run: bash .github/benny/run-opencode.sh fix
+      - name: Verify the proposed fix
+        run: bash .github/benny/verify-fix.sh
       # An artifact on a public repository is downloadable by anyone, so the fix travels as job outputs.
       # A consuming step prints its env in the public log, so the patch leaves only after a secret scan.
       - name: Package the fix
         id: package
-        env:
-          OUTPUT: ${{ steps.claude.outputs.structured_output }}
         run: |
           dir="$RUNNER_TEMP/benny-fix"
           mkdir -p "$dir"
-          # Claude may have edited the scan, so it runs as it was on the commit Claude started from.
+          # Run the scanner from the original workflow commit.
           git show "$GITHUB_SHA:.github/benny/scan-secrets.sh" > "$dir/scan-secrets.sh"
+          bash "$dir/scan-secrets.sh" "$RUNNER_TEMP/benny/fix-result.json"
           git add -A
           git diff --cached --binary > "$dir/fix.patch"
           # The publish job reads the patch from one environment variable, and Linux caps one string at 128 KiB.
           # A 64 KiB patch is about 86 KiB after Base64, so it stays well under that and under the 1 MB job output limit.
           if [[ ! -s "$dir/fix.patch" ]]; then
-            echo 'withheld=Claude reported a fix but changed no files.' >> "$GITHUB_OUTPUT"
+            echo 'withheld=OpenCode reported a fix but changed no files.' >> "$GITHUB_OUTPUT"
           elif (( $(wc -c < "$dir/fix.patch") > 65536 )); then
             echo 'withheld=The fix is larger than 64 KB, which is too big for a focused draft.' >> "$GITHUB_OUTPUT"
           elif ! bash "$dir/scan-secrets.sh"; then
@@ -261,7 +223,7 @@ jobs:
           else
             echo "patch=$(base64 < "$dir/fix.patch" | tr -d '\n')" >> "$GITHUB_OUTPUT"
           fi
-          echo "outcome=$(printf '%s' "$OUTPUT" | base64 | tr -d '\n')" >> "$GITHUB_OUTPUT"
+          echo "outcome=$(base64 < "$RUNNER_TEMP/benny/fix-result.json" | tr -d '\n')" >> "$GITHUB_OUTPUT"
 
   publish:
     needs: [record, fix]
@@ -298,13 +260,13 @@ jobs:
           mkdir -p "$dir"
           blocked() { printf '%s\n' "$1" > "$dir/blocked.txt"; echo "::error::$1"; exit 1; }
           # GitHub drops a job output that may contain a secret, so an empty one never arrived.
-          [[ -n "$OUTCOME_B64" ]] || blocked "Claude's outcome did not reach this job. GitHub withholds a job output that may contain a secret."
+          [[ -n "$OUTCOME_B64" ]] || blocked "Benny's outcome did not reach this job. GitHub withholds a job output that may contain a secret."
           printf '%s' "$OUTCOME_B64" | base64 -d > "$dir/outcome.json"
           jq -e '(.outcome | IN("pr", "blocked")) and (.reason | type == "string" and length > 0)
             and ([.commit_message, .pr_title, .pr_body] | all(type == "string"))' "$dir/outcome.json" > /dev/null
           jq -r '.. | strings' "$dir/outcome.json" > "$dir/outcome.txt"
           .github/benny/scan-secrets.sh "$dir/outcome.txt" ||
-            blocked "Claude's outcome looks like it contains a secret, so Benny did not publish it."
+            blocked "Benny's outcome looks like it contains a secret, so Benny did not publish it."
           echo "outcome=$(jq -r '.outcome' "$dir/outcome.json")" >> "$GITHUB_OUTPUT"
       - name: Open the draft pull request
         if: steps.outcome.outputs.outcome == 'pr'
@@ -319,7 +281,7 @@ jobs:
           [[ -n "$PATCH_B64" ]] || blocked 'The fix did not reach this job. GitHub withholds a job output that may contain a secret.'
           printf '%s' "$PATCH_B64" | base64 -d > "$dir/fix.patch"
           git apply --index "$dir/fix.patch" || blocked 'The fix does not apply to the commit it was made on.'
-          protected='^(infra|\.github|scripts/cloud|local-lab/migrations)/|(^|/)\.env|\.(tfvars|tfstate|pem|key)$'
+          protected='^(infra|\.github|\.opencode|scripts/cloud|local-lab/migrations)/|(^|/)\.env|\.(tfvars|tfstate|pem|key)$'
           changed=() forbidden=()
           # Git quotes an unusual name unless -z is given, and a quoted name would slip past the pattern.
           # Without rename detection, a moved file lists both its old and its new path.
@@ -327,7 +289,7 @@ jobs:
             changed+=("$path")
             if [[ "$path" =~ $protected ]]; then forbidden+=("$path"); fi
           done < <(git diff --cached --name-only -z --no-renames)
-          (( ${#changed[@]} )) || blocked 'Claude reported a fix but changed no files.'
+          (( ${#changed[@]} )) || blocked 'OpenCode reported a fix but changed no files.'
           (( ! ${#forbidden[@]} )) || blocked "The fix changes files Benny may not touch: ${forbidden[*]}."
           # The check above refuses a change to .github/, so this scan is the one on the base commit.
           .github/benny/scan-secrets.sh || blocked 'The fix looks like it contains a secret, so Benny did not publish it.'
