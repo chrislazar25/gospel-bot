@@ -25,7 +25,8 @@ function setup() {
   const uploaded: { path: string; size: number }[] = [];
   const comments: { issue: number; body: string }[] = [];
   const labelled: { issue: number; label: string }[] = [];
-  const faults = { create: false, createLost: false, get: new Set<number>(), reply: false, replyLost: false, upload: false, label: false };
+  // unlisted: issues GitHub created but does not list yet.
+  const faults = { create: false, createLost: false, unlisted: new Set<number>(), get: new Set<number>(), reply: false, replyLost: false, upload: false, label: false };
   const wa: Whatsapp = {
     async react(key, emoji) { calls.push({ kind: 'react', key, value: emoji }); },
     async reply(key, text, id) {
@@ -45,7 +46,7 @@ function setup() {
       return number;
     },
     async findByMarker(marker) {
-      const i = created.findIndex((c) => c.body.includes(marker));
+      const i = created.findIndex((c, n) => c.body.includes(marker) && !faults.unlisted.has(101 + n));
       return i < 0 ? undefined : 101 + i;
     },
     async get(n) {
@@ -67,10 +68,13 @@ function setup() {
   const store = openStore(home);
   const logs: { event: string; fields: object | undefined }[] = [];
   const log = (event: string, fields?: object) => logs.push({ event, fields });
-  const bridge = createBridge({ wa, github, store, groupJid: GROUP, log });
-  const restart = (groupJid = GROUP) => createBridge({ wa, github, store: openStore(home), groupJid, log });
+  let clock = Date.parse('2026-11-26T10:00:00.000Z');
+  const now = () => clock;
+  const tick = (minutes: number) => { clock += minutes * 60000; };
+  const bridge = createBridge({ wa, github, store, groupJid: GROUP, log, now });
+  const restart = (groupJid = GROUP) => createBridge({ wa, github, store: openStore(home), groupJid, log, now });
   const label = (n: number, ...labels: string[]) => { issues.get(n)!.labels = ['benny:report', ...labels]; };
-  return { bridge, restart, home, calls, replyIds, created, uploaded, comments, labelled, issues, faults, store, logs, label };
+  return { bridge, restart, home, calls, replyIds, created, uploaded, comments, labelled, issues, faults, store, logs, label, tick };
 }
 
 test('a new report creates one labelled issue, reacts with eyes and is remembered', async () => {
@@ -330,16 +334,65 @@ test('after a crash between creating the issue and saving it, the next poll adop
   assert.equal(t.created.length, 1);
 });
 
-test('a message whose create never reached GitHub is forgotten at the next poll and can be reported again', async () => {
+test('a message whose create never reached GitHub is forgotten after two misses 2 minutes apart, 10 minutes on, and can be reported again', async () => {
   const t = setup();
   t.faults.create = true;
   await t.bridge.onMessage(dad('M1'));
   t.faults.create = false;
+  const dropped = () => t.logs.some((l) => l.event === 'pending_dropped');
   await t.bridge.poll();
-  assert.ok(t.logs.some((l) => l.event === 'pending_dropped'));
-  assert.equal(t.store.entries().length, 0);
+  t.tick(3);
+  await t.bridge.poll();
+  assert.ok(!dropped(), 'kept for 10 minutes');
+  t.tick(7);
+  await t.bridge.poll();
+  assert.ok(dropped());
+  assert.equal(t.store.message('M1'), undefined);
   await t.bridge.onMessage(dad('M1'));
   assert.equal(t.created.length, 1);
+});
+
+test('after 10 minutes a single miss, or two misses under 2 minutes apart, does not forget a pending message', async () => {
+  const t = setup();
+  t.faults.create = true;
+  await t.bridge.onMessage(dad('M1'));
+  t.faults.create = false;
+  t.tick(11);
+  await t.bridge.poll();
+  t.tick(1);
+  await t.bridge.poll();
+  assert.equal(t.store.message('M1')?.status, 'pending');
+  t.tick(1);
+  await t.bridge.poll();
+  assert.equal(t.store.message('M1'), undefined);
+});
+
+test('an issue GitHub lists only after a few polls is adopted, not created twice', async () => {
+  const t = setup();
+  t.faults.createLost = true;
+  await t.bridge.onMessage(dad('M1'));
+  t.faults.createLost = false;
+  t.faults.unlisted.add(101);
+  for (let i = 0; i < 4; i++) { await t.bridge.poll(); t.tick(2); }
+  t.faults.unlisted.clear();
+  await t.bridge.poll();
+  assert.equal(t.created.length, 1);
+  assert.deepEqual(t.store.entries().map(([n, e]) => [n, e.key.id]), [[101, 'M1']]);
+  assert.ok(!t.logs.some((l) => l.event === 'pending_dropped'));
+});
+
+test('a message redelivered after its late-listed issue appears adopts it instead of creating another', async () => {
+  const t = setup();
+  t.faults.createLost = true;
+  await t.bridge.onMessage(dad('M1'));
+  t.faults.createLost = false;
+  t.faults.unlisted.add(101);
+  await t.bridge.poll();
+  t.faults.unlisted.clear();
+  t.tick(1);
+  await t.bridge.onMessage(dad('M1'));
+  assert.equal(t.created.length, 1);
+  assert.deepEqual(t.store.entries().map(([n]) => n), [101]);
 });
 
 test('a report written by an older bridge is not created again when its message is redelivered', async () => {

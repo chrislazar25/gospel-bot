@@ -2,7 +2,10 @@ import { z } from 'zod';
 import { type Issue, REPORT_LABEL } from './states.js';
 
 const createdSchema = z.object({ number: z.number().int().positive() });
-const listedSchema = z.array(z.object({ number: z.number().int().positive(), body: z.string().nullish(), pull_request: z.unknown().optional() }));
+const listedSchema = z.array(z.object({
+  number: z.number().int().positive(), body: z.string().nullish(), created_at: z.string(), pull_request: z.unknown().optional(),
+}));
+const PAGE = 100;
 const issueSchema = z.object({
   number: z.number().int().positive(), state: z.enum(['open', 'closed']), state_reason: z.string().nullish(),
   labels: z.array(z.union([z.string(), z.object({ name: z.string() })])),
@@ -20,7 +23,8 @@ export class GithubError extends Error {
 export type Github = {
   create(issue: { title: string; body: string; labels: string[] }): Promise<number>;
   get(number: number): Promise<Issue>;
-  findByMarker(marker: string): Promise<number | undefined>;
+  /** The report issue created at or after `since` whose body carries `marker`. */
+  findByMarker(marker: string, since: Date): Promise<number | undefined>;
   upload(path: string, bytes: Buffer): Promise<string>;
   comment(issue: number, body: string): Promise<void>;
   addLabel(issue: number, label: string): Promise<void>;
@@ -44,9 +48,16 @@ export function createGithub(config: { token: string; repo: string }, request: t
   return {
     async create(issue) { return createdSchema.parse(await call('POST', '/issues', issue)).number; },
     async get(number) { return issueSchema.parse(await call('GET', `/issues/${number}`)); },
-    async findByMarker(marker) {
-      const recent = listedSchema.parse(await call('GET', `/issues?labels=${encodeURIComponent(REPORT_LABEL)}&state=all&sort=created&direction=desc&per_page=50`));
-      return recent.find((i) => !i.pull_request && i.body?.includes(marker))?.number;
+    async findByMarker(marker, since) {
+      // `since` filters on updated_at, which an issue created since then also passes. Newest first, so stop at an older one.
+      const query = `labels=${encodeURIComponent(REPORT_LABEL)}&state=all&sort=created&direction=desc&since=${encodeURIComponent(since.toISOString())}&per_page=${PAGE}`;
+      for (let page = 1; ; page++) {
+        const listed = listedSchema.parse(await call('GET', `/issues?${query}&page=${page}`));
+        const fresh = listed.filter((i) => Date.parse(i.created_at) >= since.getTime());
+        const found = fresh.find((i) => !i.pull_request && i.body?.includes(marker));
+        if (found) return found.number;
+        if (listed.length < PAGE || fresh.length < listed.length) return undefined;
+      }
     },
     async comment(issue, body) { await call('POST', `/issues/${issue}/comments`, { body }); },
     async addLabel(issue, label) { await call('POST', `/issues/${issue}/labels`, { labels: [label] }); },

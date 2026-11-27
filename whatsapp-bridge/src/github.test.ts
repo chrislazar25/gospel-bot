@@ -84,13 +84,36 @@ test('comment and addLabel post to the issue', async () => {
   assert.deepEqual(JSON.parse(String(calls[1]!.init.body)), { labels: ['benny:triage-again'] });
 });
 
-test('findByMarker returns the recent report issue whose body carries the marker, never a pull request', async () => {
+const since = new Date('2026-11-26T10:00:00.000Z');
+const at = (minutes: number) => new Date(since.getTime() + minutes * 60000).toISOString();
+
+test('findByMarker returns the report issue created since the cutoff whose body carries the marker, never a pull request', async () => {
   const { calls, request } = fake(200, [
-    { number: 9, body: 'x <!-- wa-message:M1 --> pr', pull_request: {} }, { number: 8, body: null },
-    { number: 7, body: 'text\n\n<!-- wa-message:M1 -->' }, { number: 6, body: '<!-- wa-message:M1 -->' },
+    { number: 9, body: 'x <!-- wa-message:M1 --> pr', created_at: at(3), pull_request: {} }, { number: 8, body: null, created_at: at(2) },
+    { number: 7, body: 'text\n\n<!-- wa-message:M1 -->', created_at: at(1) }, { number: 6, body: '<!-- wa-message:M2 -->', created_at: at(-1) },
   ]);
   const gh = createGithub(config, request);
-  assert.equal(await gh.findByMarker('<!-- wa-message:M1 -->'), 7);
-  assert.equal(await gh.findByMarker('<!-- wa-message:M2 -->'), undefined);
-  assert.equal(calls[0]!.url, 'https://api.github.com/repos/o/r/issues?labels=benny%3Areport&state=all&sort=created&direction=desc&per_page=50');
+  assert.equal(await gh.findByMarker('<!-- wa-message:M1 -->', since), 7);
+  assert.equal(await gh.findByMarker('<!-- wa-message:M2 -->', since), undefined);
+  assert.equal(await gh.findByMarker('<!-- wa-message:M3 -->', since), undefined);
+  assert.equal(calls[0]!.url, 'https://api.github.com/repos/o/r/issues?labels=benny%3Areport&state=all&sort=created&direction=desc&since=2026-11-26T10%3A00%3A00.000Z&per_page=100&page=1');
+});
+
+test('findByMarker pages past 100 newer issues and stops at the first issue older than the cutoff', async () => {
+  const pages: Record<string, object[]> = {
+    1: Array.from({ length: 100 }, (_, i) => ({ number: 500 - i, body: 'other', created_at: at(200 - i) })),
+    2: [{ number: 400, body: 'other', created_at: at(50) }, { number: 399, body: 'old <!-- wa-message:M9 -->', created_at: at(-10) }],
+    3: [{ number: 300, body: '<!-- wa-message:M1 -->', created_at: at(-20) }],
+  };
+  const urls: string[] = [];
+  const request = (async (url: string) => {
+    urls.push(url);
+    return new Response(JSON.stringify(pages[new URL(url).searchParams.get('page')!] ?? []), { status: 200 });
+  }) as unknown as typeof fetch;
+  const gh = createGithub(config, request);
+  pages[2]!.unshift({ number: 401, body: '<!-- wa-message:M1 -->', created_at: at(60) });
+  assert.equal(await gh.findByMarker('<!-- wa-message:M1 -->', since), 401);
+  urls.length = 0;
+  assert.equal(await gh.findByMarker('<!-- wa-message:M9 -->', since), undefined);
+  assert.deepEqual(urls.map((u) => new URL(u).searchParams.get('page')), ['1', '2']);
 });

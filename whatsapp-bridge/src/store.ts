@@ -17,10 +17,12 @@ const entrySchema = z.object({
 export type Entry = z.infer<typeof entrySchema>;
 // pending: an issue may exist on GitHub for this message but the bridge has not confirmed it. done: nothing left to do.
 const messageSchema = z.discriminatedUnion('status', [
-  z.object({ status: z.literal('pending'), key: keySchema, at: z.string() }),
+  // missedAt: the first lookup since the last create attempt that found no issue.
+  z.object({ status: z.literal('pending'), key: keySchema, at: z.string(), missedAt: z.string().optional() }),
   z.object({ status: z.literal('done'), issue: z.number().int().positive().optional(), at: z.string() }),
 ]);
 export type Message = z.infer<typeof messageSchema>;
+export type Pending = Extract<Message, { status: 'pending' }>;
 const reportsSchema = z.record(z.string().regex(/^\d+$/), entrySchema);
 const fileSchema = z.union([
   z.object({ reports: reportsSchema, messages: z.record(z.string(), messageSchema) }),
