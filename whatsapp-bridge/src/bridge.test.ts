@@ -113,6 +113,22 @@ test('after switching to another group, reports from the old group are dropped w
   assert.ok(t.logs.some((l) => l.event === 'stale_group'));
 });
 
+test('after switching groups, a pending report from the old group is not recovered and never messages it', async () => {
+  const t = setup();
+  t.faults.createLost = true;
+  await t.bridge.onMessage(dad('M1'));
+  t.faults.createLost = false;
+  const again = t.restart('777@g.us');
+  await again.poll();
+  await again.poll();
+  assert.deepEqual(t.calls, []);
+  assert.deepEqual(openStore(t.home).entries(), []);
+  assert.equal(openStore(t.home).message('M1')?.status, 'done');
+  assert.ok(t.logs.some((l) => l.event === 'stale_group'));
+  await t.restart().onMessage(dad('M1'));
+  assert.equal(t.created.length, 1);
+});
+
 test("the owner's own manual message is accepted", async () => {
   const t = setup();
   const own: Incoming = { key: { remoteJid: GROUP, id: 'MINE', fromMe: true }, text: 'testing the bridge', quotedId: null, attachment: null };

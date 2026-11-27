@@ -20,7 +20,20 @@ export interface Whatsapp {
 export const replyId = (seed: string) => '3EB0' + createHash('sha256').update(seed).digest('hex').toUpperCase().slice(0, 18);
 
 export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; groupJid: string; log: Log }) {
-  const { wa, github, store, groupJid, log } = d;
+  const { github, store, groupJid, log } = d;
+  // Every send goes through here, so nothing reaches a chat other than the report group, whatever the store holds.
+  const ours = (key: Key) => { if (key.remoteJid !== groupJid) throw new Error('other_chat'); };
+  const wa: Whatsapp = {
+    async react(key, emoji) { ours(key); await d.wa.react(key, emoji); },
+    async reply(key, text, messageId) { ours(key); await d.wa.reply(key, text, messageId); },
+  };
+  // Left over from a bridge pointed at another group, such as a test group. Its issues stay on GitHub, untracked.
+  for (const [issue, entry] of store.entries()) {
+    if (entry.key.remoteJid !== groupJid) { store.delete(issue); log('stale_group', { issue }); }
+  }
+  for (const [id, m] of store.messages()) {
+    if (m.status === 'pending' && m.key.remoteJid !== groupJid) { store.setMessage(id, { status: 'done', at: m.at }); log('stale_group', { msg: id }); }
+  }
   let queue: Promise<unknown> = Promise.resolve();
   const serial = (fn: () => Promise<void>) => {
     const run = queue.then(fn);
@@ -113,11 +126,6 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
   const check = async (issue: number) => {
     let entry = store.entries().find(([n]) => n === issue)?.[1];
     if (!entry) return;
-    if (entry.key.remoteJid !== groupJid) {
-      store.delete(issue);
-      log('stale_group', { issue });
-      return;
-    }
     try {
       const state = stateOf(await github.get(issue));
       if (entry.retriage) entry = await retriage(issue, entry, state);
