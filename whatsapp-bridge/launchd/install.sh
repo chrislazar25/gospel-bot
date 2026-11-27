@@ -15,5 +15,7 @@ chmod 700 "$home" "$home/app"
 
 sed "s#__HOME__#$home#g" "$src/launchd/$label.plist" > "$plist"
 launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+# bootout returns before the old bridge exits; starting early would find its lock and exit.
+for _ in $(seq 1 30); do pgrep -f "$home/app/dist/main.js" >/dev/null || break; sleep 1; done
 launchctl bootstrap "gui/$(id -u)" "$plist"
 echo "installed; logs: $home/bridge.log"
