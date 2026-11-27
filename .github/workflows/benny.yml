@@ -189,7 +189,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           git switch -c "benny/issue-$ISSUE"
-          .github/benny/context.sh "$ISSUE" "$RUNNER_TEMP/benny"
+          .github/benny/context.sh "$ISSUE" "$RUNNER_TEMP/benny" fix
           npm ci --prefix local-lab
       - name: Install OpenCode
         run: bash .github/benny/install-opencode.sh
