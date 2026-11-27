@@ -74,6 +74,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: .github/benny/context.sh "$ISSUE" "$RUNNER_TEMP/benny"
+      - name: Install Claude subprocess isolation dependency
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends bubblewrap
+          bwrap --version
       - name: Triage
         id: claude
         env:
@@ -206,6 +211,11 @@ jobs:
           git switch -c "benny/issue-$ISSUE"
           .github/benny/context.sh "$ISSUE" "$RUNNER_TEMP/benny"
           npm ci --prefix local-lab
+      - name: Install Claude subprocess isolation dependency
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends bubblewrap
+          bwrap --version
       - name: Fix
         id: claude
         timeout-minutes: 75
