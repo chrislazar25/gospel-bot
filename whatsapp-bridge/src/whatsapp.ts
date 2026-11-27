@@ -1,5 +1,9 @@
+import { createDecipheriv } from 'node:crypto';
 import { join } from 'node:path';
-import makeWASocket, { Browsers, DisconnectReason, downloadMediaMessage, normalizeMessageContent, type proto, toNumber, unixTimestampSeconds, useMultiFileAuthState, type WAMessage } from 'baileys';
+import makeWASocket, {
+  Browsers, DEF_MEDIA_HOST, DEFAULT_ORIGIN, DisconnectReason, getMediaKeys, normalizeMessageContent, type proto, toNumber,
+  unixTimestampSeconds, useMultiFileAuthState, type WAMessage,
+} from 'baileys';
 import qrcode from 'qrcode-terminal';
 import { z } from 'zod';
 import type { Attachment, Incoming, Whatsapp } from './bridge.js';
@@ -37,19 +41,26 @@ const isViewOnce = (c: Content, depth = 0): boolean => !!c && depth < 6 && (
   Object.values(c).some((v) => typeof v === 'object' && v !== null && 'message' in v && isViewOnce(v.message as Content, depth + 1))
 );
 
-// Baileys fetches https://<host of url><directPath> when directPath is set (host defaults to mmg.whatsapp.net), else url itself.
-const fromWhatsappServers = ({ url, directPath }: { url?: string | null; directPath?: string | null }) => {
-  if ((!url && !directPath) || (directPath && !directPath.startsWith('/'))) return false;
-  if (!url) return true;
-  const u = URL.parse(url);
-  return !!u && u.protocol === 'https:' && u.hostname.endsWith('.whatsapp.net') && !u.port && !u.username && !u.password;
+// The location Baileys would fetch: https://<host of url><directPath> when directPath is set (host defaults to
+// mmg.whatsapp.net), else url itself. Returned only when that location is https on a whatsapp.net host.
+const mediaUrl = ({ url, directPath }: proto.Message.IImageMessage): string | undefined => {
+  if (directPath && !directPath.startsWith('/')) return undefined;
+  const given = url ? URL.parse(url) : null;
+  if (url && !given) return undefined;
+  const u = URL.parse(directPath ? `https://${given?.host ?? DEF_MEDIA_HOST}${directPath}` : url ?? '');
+  return u && u.protocol === 'https:' && u.hostname.endsWith('.whatsapp.net') && !u.port && !u.username && !u.password ? u.href : undefined;
 };
 
-// Passes Baileys only the checked fields. Other keys in the message, or a missing url (which makes Baileys fall back to
-// thumbnailDirectPath), would fetch something the check never saw.
-const downloadChecked = (key: WAMessage['key'], i: proto.Message.IImageMessage) => downloadMediaMessage(
-  { key, message: { imageMessage: { url: i.url ?? null, directPath: i.directPath ?? null, mediaKey: i.mediaKey ?? null } } }, 'buffer', {},
-);
+// Baileys' downloader follows redirects to any host, so the bridge fetches the checked location itself with redirects
+// refused, then decrypts as Baileys does: AES-256-CBC with keys derived from the media key, minus a trailing 10-byte MAC.
+const downloadImage = async (url: string, mediaKey: Uint8Array | null | undefined) => {
+  const { cipherKey, iv } = await getMediaKeys(mediaKey, 'image');
+  const response = await fetch(url, { headers: { Origin: DEFAULT_ORIGIN }, redirect: 'error', signal: AbortSignal.timeout(60000) });
+  if (!response.ok) throw new Error(`media_${response.status}`);
+  const encrypted = Buffer.from(await response.arrayBuffer());
+  const decipher = createDecipheriv('aes-256-cbc', cipherKey, iv);
+  return Buffer.concat([decipher.update(encrypted.subarray(0, -10)), decipher.final()]);
+};
 
 export function toIncoming(m: WAMessage, log: Log): Incoming | undefined {
   const { remoteJid, id, participant, fromMe } = m.key;
@@ -59,10 +70,10 @@ export function toIncoming(m: WAMessage, log: Log): Incoming | undefined {
   const c = normalizeMessageContent(m.message);
   const image = c?.imageMessage;
   const text = c?.conversation || c?.extendedTextMessage?.text || image?.caption || c?.videoMessage?.caption || '';
-  const checked = image && fromWhatsappServers(image) ? image : undefined;
-  if (image && !checked) log('media_url_rejected', { msg: id });
-  const attachment: Attachment | null = checked
-    ? { kind: 'image', mimetype: checked.mimetype || 'image/jpeg', download: () => downloadChecked(m.key, checked) }
+  const url = image ? mediaUrl(image) : undefined;
+  if (image && !url) log('media_url_rejected', { msg: id });
+  const attachment: Attachment | null = image && url
+    ? { kind: 'image', mimetype: image.mimetype || 'image/jpeg', download: () => downloadImage(url, image.mediaKey) }
     : image || c?.audioMessage || c?.videoMessage || c?.documentMessage || c?.stickerMessage ? { kind: 'unsupported' } : null;
   if (!text && !attachment) return undefined;
   const quotedId = c?.extendedTextMessage?.contextInfo?.stanzaId || image?.contextInfo?.stanzaId || null;

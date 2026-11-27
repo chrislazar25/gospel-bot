@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createServer, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { mock } from 'node:test';
-import makeWASocket, { DisconnectReason, type WAMessage } from 'baileys';
+import makeWASocket, { DisconnectReason, encryptedStream, type WAMessage } from 'baileys';
 import { connectWhatsapp, toIncoming } from './whatsapp.js';
 
 const incoming = (m: WAMessage) => toIncoming(m, () => {});
@@ -105,6 +107,40 @@ test('the download fetches exactly the checked location, never another field of 
       assert.equal(fetched.pop(), expected);
     }
   } finally { fetch.mock.restore(); }
+});
+
+// Serves `routes` on localhost and points every https://mmg.whatsapp.net fetch at it, through the real fetch and its options.
+async function mediaHost(t: { after(fn: () => void): void }, routes: Record<string, (res: ServerResponse) => void>) {
+  const hits: string[] = [];
+  const server = createServer((req, res) => { hits.push(req.url!); (routes[req.url!] ?? ((r) => r.writeHead(404).end()))(res); });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const real = globalThis.fetch;
+  const local = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const fetch = mock.method(globalThis, 'fetch', (url: string, init: RequestInit) => real(String(url).replace('https://mmg.whatsapp.net', local), init));
+  t.after(() => { fetch.mock.restore(); server.close(); });
+  return hits;
+}
+
+test('a redirect from the media host is refused, never followed', async (t) => {
+  const hits = await mediaHost(t, {
+    '/v/photo': (res) => res.writeHead(302, { location: '/internal' }).end(),
+    '/internal': (res) => res.end('private'),
+  });
+  const a = incoming(msg({ imageMessage: { url: 'https://mmg.whatsapp.net/v/photo', directPath: '/v/photo', mediaKey: new Uint8Array(32) } }))?.attachment;
+  assert.ok(a?.kind === 'image');
+  await assert.rejects(a.download());
+  assert.deepEqual(hits, ['/v/photo']);
+});
+
+test('a downloaded photo is decrypted to the bytes the sender encrypted', async (t) => {
+  const photo = Buffer.from('a photo of the wrong verse '.repeat(40));
+  const { mediaKey, encFilePath } = await encryptedStream(photo, 'image');
+  const encrypted = readFileSync(encFilePath);
+  rmSync(encFilePath);
+  await mediaHost(t, { '/v/photo': (res) => res.end(encrypted) });
+  const a = incoming(msg({ imageMessage: { directPath: '/v/photo', mediaKey } }))?.attachment;
+  assert.ok(a?.kind === 'image');
+  assert.deepEqual(await a.download(), photo);
 });
 
 test('the quoted message id comes from the text or image context', () => {
