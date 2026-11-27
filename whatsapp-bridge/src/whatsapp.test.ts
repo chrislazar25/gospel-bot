@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -165,13 +165,14 @@ function fakeSocket() {
   }) as unknown as typeof makeWASocket;
   return { socket, seen, emit: (u: object) => handlers.get('connection.update')!(u), upsert: (u: object) => handlers.get('messages.upsert')!(u) };
 }
-const connect = async (interactive: boolean, pairPhone?: string) => {
+const newHome = () => join(mkdtempSync(join(tmpdir(), 'wa-')), 'home');
+const connect = async (interactive: boolean, pairPhone?: string, home = newHome()) => {
   const f = fakeSocket();
   const events: string[] = [];
   const received: string[] = [];
   let unlinked = 0;
   const wa = await connectWhatsapp({
-    home: join(mkdtempSync(join(tmpdir(), 'wa-')), 'home'), interactive, pairPhone, log: (e) => events.push(e), onStop: () => { unlinked++; },
+    home, interactive, pairPhone, log: (e) => events.push(e), onStop: () => { unlinked++; },
     onMessage: (m) => received.push(m.key.id),
   }, f.socket);
   return { ...f, wa, events, received, unlinked: () => unlinked };
@@ -234,6 +235,51 @@ test('messages delivered after an outage are taken only when sent within the las
   c.upsert({ type: 'append', messages: [at('HOUR', now - 3600), at('TWO_DAYS', now - 2 * 86400), at('NO_TIME', 0)] });
   c.upsert({ type: 'other', messages: [at('OTHER', now)] });
   assert.deepEqual(c.received, ['LIVE', 'HOUR']);
+});
+
+const lastSeen = (home: string, secondsAgo: number) => {
+  mkdirSync(home, { recursive: true });
+  writeFileSync(join(home, 'last-seen.json'), JSON.stringify({ lastSeenAt: new Date(Date.now() - secondsAgo * 1000).toISOString() }));
+};
+const DAY = 86400;
+
+test('after a 3-day outage, reports sent during it are taken on reconnect, and ones from before it are not', async () => {
+  const home = newHome();
+  lastSeen(home, 3 * DAY);
+  const c = await connect(false, undefined, home);
+  await c.emit({ connection: 'open' });
+  const now = Math.floor(Date.now() / 1000);
+  const at = (id: string, messageTimestamp: number) => ({ key: { ...key, id }, message: { conversation: 'a' }, messageTimestamp });
+  c.upsert({ type: 'append', messages: [at('BEFORE', now - 3 * DAY - 3600), at('EDGE', now - 3 * DAY - 300), at('DURING', now - 2 * DAY)] });
+  c.upsert({ type: 'append', messages: [at('LATER_BATCH', now - 2.5 * DAY)] });
+  assert.deepEqual(c.received, ['EDGE', 'DURING', 'LATER_BATCH']);
+});
+
+test('an outage longer than 14 days takes only the last 14 days of reports', async () => {
+  const home = newHome();
+  lastSeen(home, 20 * DAY);
+  const c = await connect(false, undefined, home);
+  await c.emit({ connection: 'open' });
+  const now = Math.floor(Date.now() / 1000);
+  const at = (id: string, messageTimestamp: number) => ({ key: { ...key, id }, message: { conversation: 'a' }, messageTimestamp });
+  c.upsert({ type: 'append', messages: [at('FIFTEEN_DAYS', now - 15 * DAY), at('THIRTEEN_DAYS', now - 13 * DAY)] });
+  assert.deepEqual(c.received, ['THIRTEEN_DAYS']);
+});
+
+test('the bridge records when it was last connected, privately, on each message and each heartbeat', async () => {
+  const home = newHome();
+  const file = join(home, 'last-seen.json');
+  const seenAt = () => Date.parse(JSON.parse(readFileSync(file, 'utf8')).lastSeenAt);
+  const c = await connect(false, undefined, home);
+  c.wa.markSeen();
+  assert.ok(!existsSync(file), 'not while disconnected');
+  await c.emit({ connection: 'open' });
+  c.upsert({ type: 'notify', messages: [{ key, message: { conversation: 'a' }, messageTimestamp: Math.floor(Date.now() / 1000) }] });
+  assert.ok(Date.now() - seenAt() < 5000);
+  assert.equal(statSync(file).mode & 0o777, 0o600);
+  lastSeen(home, DAY);
+  c.wa.markSeen();
+  assert.ok(Date.now() - seenAt() < 5000);
 });
 
 test('the socket never marks the owner online and never syncs history', async () => {

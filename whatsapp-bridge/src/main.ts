@@ -50,7 +50,7 @@ async function run() {
   bridge = createBridge({ wa, github, store, groupJid: env.REPORT_GROUP_JID, log });
   const ms = env.POLL_SECONDS * 1000;
   setInterval(() => { bridge?.poll().catch((e) => log('poll_crashed', { error: why(e) })); }, ms);
-  setInterval(() => log('heartbeat', { reports: store.entries().length }), ms);
+  setInterval(() => { wa.markSeen(); log('heartbeat', { reports: store.entries().length }); }, ms);
   log('started', { reports: store.entries().length });
   for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => { wa.close().finally(() => process.exit(0)); });
 }

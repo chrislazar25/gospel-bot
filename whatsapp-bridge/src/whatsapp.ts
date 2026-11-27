@@ -1,4 +1,5 @@
 import { createDecipheriv } from 'node:crypto';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import makeWASocket, {
   Browsers, DEF_MEDIA_HOST, DEFAULT_ORIGIN, DisconnectReason, getMediaKeys, normalizeMessageContent, type proto, toNumber,
@@ -27,10 +28,15 @@ const STOP_REASONS: Partial<Record<number, string>> = {
   [DisconnectReason.forbidden]: 'wa_forbidden',
   [DisconnectReason.multideviceMismatch]: 'wa_multidevice_mismatch',
 };
-const OFFLINE_WINDOW_SECONDS = 24 * 60 * 60;
-// Baileys marks messages delivered while the bridge was offline as 'append'. Only recent ones are reports worth taking.
-const wanted = (type: string, m: WAMessage) =>
-  type === 'notify' || (type === 'append' && unixTimestampSeconds() - toNumber(m.messageTimestamp) <= OFFLINE_WINDOW_SECONDS);
+const DAY = 24 * 60 * 60;
+// Baileys marks messages delivered while the bridge was offline as 'append'. It takes those sent since 10 minutes before
+// it was last seen connected, or in the last day if that reaches further back, and never any older than 14 days.
+const wanted = (type: string, m: WAMessage, lastSeen: number | undefined) => {
+  if (type !== 'append') return type === 'notify';
+  const now = unixTimestampSeconds();
+  return toNumber(m.messageTimestamp) >= Math.max(now - 14 * DAY, Math.min(now - DAY, (lastSeen ?? now) - 10 * 60));
+};
+const lastSeenSchema = z.object({ lastSeenAt: z.iso.datetime() });
 const statusOf = (e: unknown) => z.object({ output: z.object({ statusCode: z.number() }) }).safeParse(e).data?.output.statusCode;
 
 type Content = WAMessage['message'];
@@ -84,6 +90,8 @@ const waKey = (k: Key) => ({ remoteJid: k.remoteJid, id: k.id, fromMe: k.fromMe,
 
 export type Connection = Whatsapp & {
   ready: Promise<void>;
+  /** Records that the bridge is connected now, so messages from a later outage are taken on reconnect. */
+  markSeen(): void;
   groups(): Promise<{ id: string; subject: string }[]>;
   createGroup(subject: string): Promise<{ id: string; subject: string }>;
   close(): Promise<void>;
@@ -97,8 +105,20 @@ export async function connectWhatsapp(o: {
   ensurePrivateDir(o.home);
   ensurePrivateDir(authDir);
   const { state, saveCreds } = await useMultiFileAuthState(authDir);
+  const seenPath = join(o.home, 'last-seen.json');
+  const readSeen = () => {
+    try { return Date.parse(lastSeenSchema.parse(JSON.parse(readFileSync(seenPath, 'utf8'))).lastSeenAt) / 1000; } catch { return undefined; }
+  };
+  // Read when the connection opens, before this connection marks anything, so the whole backlog is judged against it.
+  let lastSeen = readSeen();
   let sock: Socket | undefined;
   let open = false, closing = false, attempt = 0;
+  const markSeen = () => {
+    if (!open) return;
+    const tmp = `${seenPath}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify({ lastSeenAt: new Date().toISOString() }), { mode: 0o600 });
+    renameSync(tmp, seenPath);
+  };
   let markReady = () => {};
   const ready = new Promise<void>((r) => { markReady = r; });
 
@@ -111,7 +131,10 @@ export async function connectWhatsapp(o: {
     let asked = false;
     s.ev.on('creds.update', () => { void saveCreds().catch((e) => o.log('creds_save_failed', { error: why(e) })); });
     s.ev.on('messages.upsert', ({ messages, type }) => {
-      for (const m of messages) { const i = wanted(type, m) && toIncoming(m, o.log); if (i) o.onMessage?.(i); }
+      for (const m of messages) {
+        const i = wanted(type, m, lastSeen) && toIncoming(m, o.log);
+        if (i) { o.onMessage?.(i); markSeen(); }
+      }
     });
     s.ev.on('connection.update', async (u) => {
       if (u.qr && !state.creds.registered) {
@@ -123,7 +146,7 @@ export async function connectWhatsapp(o: {
           catch (e) { asked = false; o.log('pairing_failed', { error: why(e) }); }
         }
       }
-      if (u.connection === 'open') { open = true; attempt = 0; o.log('wa_open'); markReady(); }
+      if (u.connection === 'open') { lastSeen = readSeen(); open = true; attempt = 0; o.log('wa_open'); markReady(); }
       if (u.connection === 'close') {
         open = false;
         const code = statusOf(u.lastDisconnect?.error);
@@ -141,6 +164,7 @@ export async function connectWhatsapp(o: {
   const live = () => { if (!open || !sock) throw new Error('wa_not_connected'); return sock; };
   return {
     ready,
+    markSeen,
     async react(key, emoji) { await timed(live().sendMessage(key.remoteJid, { react: { text: emoji, key: waKey(key) } })); },
     async reply(key, text, messageId) {
       await timed(live().sendMessage(key.remoteJid, { text }, { quoted: { key: waKey(key), message: { conversation: '' } }, messageId }));
