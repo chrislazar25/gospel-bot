@@ -114,9 +114,10 @@ export async function connectWhatsapp(o: {
   // Read when the connection opens, before this connection marks anything, so the whole backlog is judged against it.
   let lastSeen = readSeen();
   let sock: Socket | undefined;
-  let openedAt: number | undefined, closing = false, attempt = 0;
+  let openedAt: number | undefined, backlogDone = false, closing = false, attempt = 0;
   const markSeen = () => {
-    if (openedAt === undefined || Date.now() - openedAt < SETTLED_MS) return;
+    // WhatsApp delivers the offline backlog after connecting; recording earlier would shrink the window for the rest of it.
+    if (openedAt === undefined || !backlogDone || Date.now() - openedAt < SETTLED_MS) return;
     const tmp = `${seenPath}.${process.pid}.tmp`;
     writeFileSync(tmp, JSON.stringify({ lastSeenAt: new Date().toISOString() }), { mode: 0o600 });
     renameSync(tmp, seenPath);
@@ -148,9 +149,11 @@ export async function connectWhatsapp(o: {
           catch (e) { asked = false; o.log('pairing_failed', { error: why(e) }); }
         }
       }
-      if (u.connection === 'open') { lastSeen = readSeen(); openedAt = Date.now(); attempt = 0; o.log('wa_open'); markReady(); }
+      if (u.connection === 'open') { lastSeen = readSeen(); openedAt = Date.now(); backlogDone = false; attempt = 0; o.log('wa_open'); markReady(); }
+      if (u.receivedPendingNotifications && openedAt !== undefined) backlogDone = true;
       if (u.connection === 'close') {
         openedAt = undefined;
+        backlogDone = false;
         const code = statusOf(u.lastDisconnect?.error);
         o.log('wa_close', { code: code ?? 0 });
         if (closing) return;

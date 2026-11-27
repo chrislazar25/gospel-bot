@@ -268,7 +268,7 @@ test('an outage longer than 14 days takes only the last 14 days of reports', asy
 
 const MINUTE = 60000;
 
-test('the bridge records when it was last connected, privately, once connected for 5 minutes, on each message and heartbeat', async (t) => {
+test('the bridge records when it was last connected, privately, once the backlog is in and it has been connected 5 minutes', async (t) => {
   t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
   const home = newHome();
   const file = join(home, 'last-seen.json');
@@ -278,6 +278,7 @@ test('the bridge records when it was last connected, privately, once connected f
   c.wa.markSeen();
   assert.ok(!existsSync(file), 'not while disconnected');
   await c.emit({ connection: 'open' });
+  await c.emit({ receivedPendingNotifications: true });
   c.upsert({ type: 'notify', messages: [live()] });
   t.mock.timers.tick(5 * MINUTE - 1);
   c.upsert({ type: 'notify', messages: [live()] });
@@ -305,6 +306,22 @@ test('a restart within 5 minutes of reconnecting after a long outage still takes
   await before.emit({ connection: 'open' });
   before.upsert({ type: 'notify', messages: [at('UNRELATED', Math.floor(Date.now() / 1000))] });
   t.mock.timers.tick(4 * MINUTE);
+  before.wa.markSeen();
+  const after = await connect(false, undefined, home);
+  await after.emit({ connection: 'open' });
+  after.upsert({ type: 'append', messages: [at('LATE_REPORT', Math.floor(Date.now() / 1000) - 2 * DAY)] });
+  assert.deepEqual(after.received, ['LATE_REPORT']);
+});
+
+test('a restart while the offline backlog is still arriving keeps the old cutoff, however long it has been connected', async (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+  const home = newHome();
+  lastSeen(home, 3 * DAY);
+  const at = (id: string, messageTimestamp: number) => ({ key: { ...key, id }, message: { conversation: 'a' }, messageTimestamp });
+  const before = await connect(false, undefined, home);
+  await before.emit({ connection: 'open' });
+  t.mock.timers.tick(10 * MINUTE);
+  before.upsert({ type: 'notify', messages: [at('UNRELATED', Math.floor(Date.now() / 1000))] });
   before.wa.markSeen();
   const after = await connect(false, undefined, home);
   await after.emit({ connection: 'open' });
