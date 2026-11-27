@@ -98,7 +98,7 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
     const body = text.trim();
     if (key.remoteJid !== groupJid || (!body && !attachment) || body.startsWith(BOT_PREFIX)) return;
     const seen = store.message(key.id);
-    if (seen?.status === 'done') return;
+    if (seen?.status === 'done' || store.threadOf(key.id)) return;
     if (!body && attachment?.kind === 'unsupported') {
       log('unsupported_media', { msg: key.id });
       await wa.react(key, '🤔').catch((e) => log('react_failed', { msg: key.id, error: why(e) }));

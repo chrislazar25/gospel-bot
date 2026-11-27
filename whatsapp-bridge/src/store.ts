@@ -67,8 +67,10 @@ export function openStore(home: string): Store {
     message: (id) => messages[id],
     setMessage(id, message) {
       messages[id] = message;
-      const oldest = Object.entries(messages).sort(([, a], [, b]) => a.at.localeCompare(b.at));
-      for (const [old] of oldest.slice(0, Math.max(0, oldest.length - MAX_MESSAGES))) delete messages[old];
+      // A pending message or a tracked report is still the only guard against a duplicate issue, so neither is evicted.
+      const tracked = new Set(Object.values(reports).map((e) => e.key.id));
+      const evictable = Object.entries(messages).filter(([k, m]) => m.status === 'done' && !tracked.has(k)).sort(([, a], [, b]) => a.at.localeCompare(b.at));
+      for (const [old] of evictable.slice(0, Math.max(0, Object.keys(messages).length - MAX_MESSAGES))) delete messages[old];
       flush();
     },
     deleteMessage(id) { delete messages[id]; flush(); },

@@ -352,6 +352,22 @@ test('a report written by an older bridge is not created again when its message 
   assert.deepEqual(t.comments.map((c) => c.issue), [7]);
 });
 
+test('an open report is not created again when redelivered after more than 1000 newer messages', async () => {
+  const t = setup();
+  await t.bridge.onMessage(dad('M1'));
+  for (let i = 0; i < 1005; i++) await t.bridge.onMessage(voiceNote(`V${i}`));
+  await t.restart().onMessage(dad('M1'));
+  assert.equal(t.created.length, 1);
+});
+
+test('a tracked report missing from the ledger still counts as handled', async () => {
+  const t = setup();
+  writeFileSync(join(t.home, 'reports.json'), JSON.stringify({ reports: { 7: { key: dad('M1').key, applied: 'triage', replies: [] } }, messages: {} }));
+  await t.restart().onMessage(dad('M1'));
+  assert.equal(t.created.length, 0);
+  assert.deepEqual(t.calls, []);
+});
+
 test('logs carry ids but never the report text or the sender', async () => {
   const t = setup();
   await t.bridge.onMessage(dad('M1', 'secret wording here'));

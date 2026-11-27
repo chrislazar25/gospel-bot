@@ -45,6 +45,24 @@ test(`the ledger keeps only the newest ${MAX_MESSAGES} messages`, () => {
   assert.ok(again.message(`M${MAX_MESSAGES + 4}`));
 });
 
+test('eviction never drops a tracked report or a pending message, however many newer messages arrive', () => {
+  const home = tmp();
+  const s = openStore(home);
+  s.set(7, entry('REPORT'));
+  s.setMessage('REPORT', { status: 'done', issue: 7, at: '2026-01-01T00:00:00.000Z' });
+  s.setMessage('PENDING', { status: 'pending', key: entry('PENDING').key, at: '2026-01-01T00:00:01.000Z' });
+  s.setMessage('OLD', { status: 'done', at: '2026-01-01T00:00:02.000Z' });
+  for (let i = 0; i < MAX_MESSAGES + 5; i++) s.setMessage(`M${i}`, { status: 'done', at: new Date(Date.UTC(2026, 0, 2, 0, 0, i)).toISOString() });
+  const again = openStore(home);
+  assert.equal(again.messages().length, MAX_MESSAGES);
+  assert.equal(again.message('REPORT')?.status, 'done');
+  assert.equal(again.message('PENDING')?.status, 'pending');
+  assert.equal(again.message('OLD'), undefined);
+  s.delete(7);
+  s.setMessage('NEW', done());
+  assert.equal(openStore(home).message('REPORT'), undefined);
+});
+
 test('writes are private and leave no temp file behind', () => {
   const home = tmp();
   openStore(home).set(1, entry('M1'));
