@@ -119,10 +119,13 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       ISSUE: ${{ github.event.issue.number }}
-      BRANCH: benny/issue-${{ github.event.issue.number }}
     outputs:
       fix: ${{ steps.start.outputs.fix }}
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/benny
       - name: Read the verdict
         id: verdict
         if: needs.triage.result == 'success'
@@ -157,17 +160,8 @@ jobs:
         id: start
         if: steps.verdict.outputs.verdict == 'bug' && steps.verdict.outputs.duplicate_of == '0'
         run: |
-          # A fork can open a pull request from a branch with the same name, so only this repository's counts.
-          existing=$(gh pr list --head "$BRANCH" --state open --json url,isCrossRepository \
-            --jq '[.[] | select(.isCrossRepository == false)][0].url // ""')
-          if [[ -n "$existing" ]]; then
-            # An earlier run may have opened the pull request and then failed to start CI.
-            gh workflow run ci.yml --ref "$BRANCH"
-            printf '<!-- benny:pr -->\nA draft fix for this report is already open, so Benny did not start another: %s\n' "$existing" |
-              gh issue comment "$ISSUE" --body-file -
-            gh issue edit "$ISSUE" --add-label benny:pr
-            exit 0
-          fi
+          existing=$(.github/benny/existing-fix.sh "$ISSUE")
+          [[ -z "$existing" ]] || exit 0
           gh issue edit "$ISSUE" --add-label benny:fixing
           echo "fix=true" >> "$GITHUB_OUTPUT"
       - name: Mark the report as blocked
@@ -275,7 +269,8 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       ISSUE: ${{ github.event.issue.number }}
-      BRANCH: benny/issue-${{ github.event.issue.number }}
+      # A new branch per attempt, so a push never needs to overwrite one.
+      BRANCH: benny/issue-${{ github.event.issue.number }}-${{ github.run_id }}-${{ github.run_attempt }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -336,8 +331,11 @@ jobs:
 
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
             commit --quiet -m "$subject"
-          # This workflow owns the branch, and an open pull request on it stops the run before Claude starts.
-          git push --force origin "HEAD:refs/heads/$BRANCH"
+          # A rerun of this job alone, or an overlapping run, may have opened a draft since record checked.
+          # Every Benny job for this issue shares one concurrency group, so no other run opens one after this check.
+          existing=$(.github/benny/existing-fix.sh "$ISSUE")
+          [[ -z "$existing" ]] || exit 0
+          git push origin "HEAD:refs/heads/$BRANCH"
           url=$(gh pr create --draft --base "$BASE" --head "$BRANCH" --title "$title" --body-file "$dir/pr.md")
           # A pull request opened with GITHUB_TOKEN starts no pull_request workflow, so start CI directly.
           gh workflow run ci.yml --ref "$BRANCH"
