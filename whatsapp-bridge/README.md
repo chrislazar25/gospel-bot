@@ -25,7 +25,7 @@ Phone-like numbers are removed from issue titles, bodies and comments, including
 - `GITHUB_TOKEN` is required. It needs permission to create and read issues and to write contents on the `benny-media` branch.
 - `GITHUB_REPO` defaults to `chrislazar25/gospel-bot`.
 - `REPORT_GROUP_JID` is required to run. Find it with `--list-groups`.
-- `BRIDGE_HOME` defaults to `~/.gospel-bridge`. It holds the WhatsApp session in `auth/`, the report map and message ledger in `reports.json`, the time the bridge was last connected in `last-seen.json`, and the single-instance lock in `bridge.lock`.
+- `BRIDGE_HOME` defaults to `~/.gospel-bridge`. It holds the WhatsApp session in `auth/`, the report map and message ledger in `reports.json`, and the time the bridge was last connected in `last-seen.json`.
 - `PAIR_PHONE` is optional. Digits only, with country code. When set, linking uses a pairing code instead of a QR.
 - `POLL_SECONDS` defaults to 60. It sets the poll interval and the heartbeat interval.
 
@@ -68,13 +68,13 @@ The bridge is safe to run on a personal number. It never marks the owner online,
 
 It also exits with code 3 instead of reconnecting when WhatsApp reports that another session replaced this one (`wa_replaced`), refused the device (`wa_forbidden`) or found a multi-device mismatch (`wa_multidevice_mismatch`). Reconnecting there would make two clients fight over the owner's account. Find the other bridge or linked device before you start it again.
 
-Only one bridge process runs per `BRIDGE_HOME`. Every mode takes `$BRIDGE_HOME/bridge.lock`, which holds the process id. If a live process already holds it, the new one logs `already_running` and exits with code 2. That includes `--link`, `--list-groups` and `--create-group`, so stop the service first:
+Only one bridge process runs per `BRIDGE_HOME`. Every mode listens on a TCP port on 127.0.0.1 for as long as it runs. The port is `40000 + (sha256(resolved BRIDGE_HOME) mod 9000)`, below the 49152 where macOS and most systems start handing out temporary ports, where the resolved path has symlinks followed, so one home always maps to one port. If another bridge for the same home already holds it, the new one logs `already_running` and exits with code 2. That includes `--link`, `--list-groups` and `--create-group`, so stop the service first:
 
 ```sh
 launchctl bootout gui/$(id -u)/com.chrislazar.gospel-bridge
 ```
 
-A lock left by a process that died, or by a run before the last reboot, is replaced. The bridge moves the stale lock aside with one atomic rename and checks that the file it moved is the one it judged stale. If two bridges find the same stale lock at once, only one of them takes it. The lock is removed when the process exits.
+The operating system releases the port when the process exits or crashes, so nothing is left behind to clean up. Each connection to the port is answered with `gospel-bridge <home>` and closed, which is how a new bridge tells another bridge for this home from an unrelated program. If something else owns the port, the bridge logs `lock_port_taken` with the port and exits with code 2. Stop that program, or move `BRIDGE_HOME`, which changes the port.
 
 Exit codes:
 

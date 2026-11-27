@@ -10,15 +10,14 @@ import { type Connection, connectWhatsapp } from './whatsapp.js';
 const flags = process.argv.slice(2);
 const onStop = () => process.exit(3);
 
-function holdLock(home: string) {
-  const release = acquireLock(home);
-  if (!release) { log('already_running'); process.exit(2); }
-  process.on('exit', release);
+async function holdLock(home: string) {
+  const lock = await acquireLock(home);
+  if (lock.status !== 'held') { log(lock.status, { port: lock.port }); process.exit(2); }
 }
 
 async function interactive(action: (wa: Connection) => Promise<void>) {
   const env = linkConfig(process.env);
-  holdLock(env.BRIDGE_HOME);
+  await holdLock(env.BRIDGE_HOME);
   const wa = await connectWhatsapp({ home: env.BRIDGE_HOME, pairPhone: env.PAIR_PHONE, interactive: true, log, onStop });
   await wa.ready;
   await action(wa);
@@ -39,7 +38,7 @@ async function createGroup(subject: string | undefined) {
 
 async function run() {
   const env = runConfig(process.env);
-  holdLock(env.BRIDGE_HOME);
+  await holdLock(env.BRIDGE_HOME);
   const store = openStore(env.BRIDGE_HOME);
   const github = createGithub({ token: env.GITHUB_TOKEN, repo: env.GITHUB_REPO });
   let bridge: ReturnType<typeof createBridge> | undefined;
