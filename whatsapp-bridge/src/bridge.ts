@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Github } from './github.js';
 import { type Log, why } from './log.js';
-import { followupBody, messageMarker, newIssue, type Photo, photoPath } from './report.js';
+import { followupBody, followupMarker, messageMarker, newIssue, type Photo, photoPath } from './report.js';
 import { BOT_PREFIX, RETRIAGE_LABEL, type State, stateOf, TABLE } from './states.js';
 import type { Entry, Key, Pending, Store } from './store.js';
 
@@ -48,15 +48,26 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
     return bytes.length > MAX_PHOTO_BYTES ? { tooLarge: true } : { url: await github.upload(photoPath(id, a.mimetype), bytes) };
   };
 
-  const followup = async ([issue, entry]: [number, Entry], key: Key, body: string, attachment: Attachment | null) => {
+  const entryOf = (issue: number) => store.entries().find(([n]) => n === issue)?.[1];
+
+  // Recorded as pending before posting, so a replay after a lost response adopts the comment instead of posting it again.
+  const followup = async (issue: number, key: Key, body: string, attachment: Attachment | null, seen: Pending | undefined) => {
     try {
-      const photo = attachment?.kind === 'image' ? await upload(attachment, key.id) : undefined;
-      await github.comment(issue, followupBody(body, photo));
+      store.setMessage(key.id, { status: 'pending', key, at: seen?.at ?? stamp(), followup: issue });
+      if (!seen || !(await github.hasComment(issue, followupMarker(key.id)))) {
+        const photo = attachment?.kind === 'image' ? await upload(attachment, key.id) : undefined;
+        await github.comment(issue, followupBody(body, key.id, photo));
+      }
     } catch (e) {
       log('followup_failed', { issue, msg: key.id, error: why(e) });
       return;
     }
-    store.set(issue, { ...entry, retriage: true });
+    await followupPosted(issue, key);
+  };
+
+  const followupPosted = async (issue: number, key: Key) => {
+    const entry = entryOf(issue);
+    if (entry) store.set(issue, { ...entry, retriage: true });
     store.setMessage(key.id, { status: 'done', issue, at: stamp() });
     log('followup_added', { issue, msg: key.id });
     await wa.react(key, '👀').catch((e) => log('react_failed', { issue, error: why(e) }));
@@ -86,13 +97,17 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
   // Any issue for the message was created after it was first recorded as pending; the margin absorbs clock skew.
   const lookup = (id: string, m: Pending) => github.findByMarker(messageMarker(id), new Date(Date.parse(m.at) - 5 * MINUTE));
 
-  // A pending message may already have an issue: the create succeeded but its response was lost, or the bridge crashed
-  // before saving it. A create can land on GitHub after its request timed out, so one miss proves nothing. The message is
-  // forgotten only after two misses at least 2 minutes apart, and never within 10 minutes of being recorded.
+  // A pending message may already have its issue or comment: the request succeeded but its response was lost, or the
+  // bridge crashed before saving it. A create can land on GitHub after its request timed out, so one miss proves nothing.
+  // The message is forgotten only after two misses at least 2 minutes apart, and never within 10 minutes of being recorded.
   const settle = async (id: string, m: Pending) => {
     try {
-      const issue = await lookup(id, m);
-      if (issue) return await track(m.key, issue);
+      if (m.followup) {
+        if (await github.hasComment(m.followup, followupMarker(id))) return await followupPosted(m.followup, m.key);
+      } else {
+        const issue = await lookup(id, m);
+        if (issue) return await track(m.key, issue);
+      }
     } catch (e) {
       log('poll_failed', { msg: id, error: why(e) });
       return;
@@ -120,8 +135,9 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
       store.setMessage(key.id, { status: 'done', at: stamp() });
       return;
     }
-    const thread = quotedId ? store.threadOf(quotedId) : undefined;
-    if (thread) return followup(thread, key, body, attachment);
+    // A pending message keeps the role it was first given, even if the report it followed up has since been dropped.
+    const target = seen ? seen.followup : quotedId ? store.threadOf(quotedId)?.[0] : undefined;
+    if (target) return followup(target, key, body, attachment, seen);
     let issue: number | undefined;
     try {
       // A redelivery keeps the first time, which bounds the lookup, and starts counting misses again.
@@ -137,7 +153,7 @@ export function createBridge(d: { wa: Whatsapp; github: Github; store: Store; gr
   };
 
   const check = async (issue: number) => {
-    let entry = store.entries().find(([n]) => n === issue)?.[1];
+    let entry = entryOf(issue);
     if (!entry) return;
     try {
       const state = stateOf(await github.get(issue));

@@ -84,6 +84,23 @@ test('comment and addLabel post to the issue', async () => {
   assert.deepEqual(JSON.parse(String(calls[1]!.init.body)), { labels: ['benny:triage-again'] });
 });
 
+test('hasComment pages through the issue comments looking for the marker', async () => {
+  const pages: Record<string, object[]> = {
+    1: Array.from({ length: 100 }, () => ({ body: 'other' })),
+    2: [{ body: null }, { body: 'detail\n\n<!-- wa-followup:F1 -->' }],
+  };
+  const urls: string[] = [];
+  const request = (async (url: string) => {
+    urls.push(url);
+    return new Response(JSON.stringify(pages[new URL(url).searchParams.get('page')!] ?? []), { status: 200 });
+  }) as unknown as typeof fetch;
+  const gh = createGithub(config, request);
+  assert.equal(await gh.hasComment(5, '<!-- wa-followup:F1 -->'), true);
+  assert.equal(await gh.hasComment(5, '<!-- wa-followup:F2 -->'), false);
+  assert.equal(urls[0], 'https://api.github.com/repos/o/r/issues/5/comments?per_page=100&page=1');
+  assert.equal(urls.length, 4);
+});
+
 const since = new Date('2026-11-26T10:00:00.000Z');
 const at = (minutes: number) => new Date(since.getTime() + minutes * 60000).toISOString();
 

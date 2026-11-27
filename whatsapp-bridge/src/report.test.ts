@@ -16,7 +16,7 @@ const unicodeNumbers = [
 test('numbers formatted with Unicode spaces and dashes are removed from the title, body and follow-up', () => {
   for (const n of unicodeNumbers) {
     const digits = (s: string) => s.replace(/[^0-9\uFF10-\uFF19]/gu, '');
-    for (const out of [issueTitle(`call ${n} now`), issueBody(`call ${n} now`, 'M1').split('<!--')[0]!, followupBody(`call ${n} now`)]) {
+    for (const out of [issueTitle(`call ${n} now`), issueBody(`call ${n} now`, 'M1').split('<!--')[0]!, followupBody(`call ${n} now`, 'F1')]) {
       assert.ok(out.includes('[number removed]'), JSON.stringify(out));
       assert.equal(digits(out.split('<!--')[0]!), '', JSON.stringify(out));
     }
@@ -31,7 +31,7 @@ const markedNumbers = [
 
 test('numbers with bidi marks, isolates, BOM or soft hyphens between the digits are removed from the title, body and follow-up', () => {
   for (const n of markedNumbers) {
-    for (const out of [issueTitle(`call ${n} now`), issueBody(`call ${n} now`, 'M1').split('<!--')[0]!, followupBody(`call ${n} now`).split('<!--')[0]!]) {
+    for (const out of [issueTitle(`call ${n} now`), issueBody(`call ${n} now`, 'M1').split('<!--')[0]!, followupBody(`call ${n} now`, 'F1').split('<!--')[0]!]) {
       assert.ok(out.includes('[number removed]'), JSON.stringify(out));
       assert.equal(out.replace(/\D/g, ''), '', JSON.stringify(out));
     }
@@ -85,7 +85,7 @@ test('the photo path is built from a sanitized message id and a known extension'
   assert.equal(photoPath('M1', 'application/x-evil'), 'reports/M1.jpg');
 });
 
-test('a follow-up comment is scrubbed and ends with the marker', () => {
-  assert.equal(followupBody('hi @octocat', { url: 'https://x/y.jpg' }), 'hi @\u200boctocat\n\n![photo](https://x/y.jpg)\n\n<!-- wa-followup -->');
-  assert.equal(followupBody('plain'), 'plain\n\n<!-- wa-followup -->');
+test('a follow-up comment is scrubbed and ends with a marker carrying the sanitized message id', () => {
+  assert.equal(followupBody('hi @octocat', 'F1', { url: 'https://x/y.jpg' }), 'hi @\u200boctocat\n\n![photo](https://x/y.jpg)\n\n<!-- wa-followup:F1 -->');
+  assert.equal(followupBody('plain', '3EB0-->x<'), 'plain\n\n<!-- wa-followup:3EB0x -->');
 });

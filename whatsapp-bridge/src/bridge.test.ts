@@ -26,7 +26,7 @@ function setup() {
   const comments: { issue: number; body: string }[] = [];
   const labelled: { issue: number; label: string }[] = [];
   // unlisted: issues GitHub created but does not list yet.
-  const faults = { create: false, createLost: false, unlisted: new Set<number>(), get: new Set<number>(), reply: false, replyLost: false, upload: false, label: false };
+  const faults = { create: false, createLost: false, commentLost: false, unlisted: new Set<number>(), get: new Set<number>(), reply: false, replyLost: false, upload: false, label: false };
   const wa: Whatsapp = {
     async react(key, emoji) { calls.push({ kind: 'react', key, value: emoji }); },
     async reply(key, text, id) {
@@ -53,7 +53,11 @@ function setup() {
       if (faults.get.has(n)) throw new Error('github_502');
       return issues.get(n)!;
     },
-    async comment(issue, body) { comments.push({ issue, body }); },
+    async comment(issue, body) {
+      comments.push({ issue, body });
+      if (faults.commentLost) throw new Error('timeout');
+    },
+    async hasComment(issue, marker) { return comments.some((c) => c.issue === issue && c.body.includes(marker)); },
     async addLabel(issue, label) {
       if (faults.label) throw new Error('github_502');
       labelled.push({ issue, label });
@@ -525,7 +529,7 @@ test('a quote-reply to the bot question becomes a comment on that issue and asks
   assert.equal(t.comments[0]!.issue, 101);
   assert.ok(t.comments[0]!.body.startsWith('It happened on my phone'));
   assert.ok(!t.comments[0]!.body.includes('555'));
-  assert.ok(t.comments[0]!.body.endsWith('\n\n<!-- wa-followup -->'));
+  assert.ok(t.comments[0]!.body.endsWith('\n\n<!-- wa-followup:F1 -->'));
   assert.deepEqual(t.calls.map((c) => [c.kind, c.value, c.key.id]), [['react', '👀', 'F1']]);
   assert.deepEqual(t.labelled, [{ issue: 101, label: 'benny:triage-again' }]);
   assert.ok(t.logs.some((l) => l.event === 'followup_added'));
@@ -575,6 +579,45 @@ test('a follow-up redelivered after a restart is not commented again', async () 
   await t.restart().onMessage(quoting(dad('F1', 'detail'), t.replyIds[0]!));
   assert.equal(t.comments.length, 1);
   assert.equal(t.calls.length, 1);
+});
+
+test('a follow-up whose comment GitHub accepted but whose response was lost is not posted again when redelivered after a restart', async () => {
+  const t = setup();
+  await askedForMore(t);
+  t.faults.commentLost = true;
+  await t.bridge.onMessage(quoting(dad('F1', 'detail'), t.replyIds[0]!));
+  t.faults.commentLost = false;
+  assert.equal(t.calls.length, 0);
+  const again = t.restart();
+  await again.onMessage(quoting(dad('F1', 'detail'), t.replyIds[0]!));
+  await again.onMessage(quoting(dad('F1', 'detail'), t.replyIds[0]!));
+  assert.equal(t.comments.length, 1);
+  assert.deepEqual(t.calls.map((c) => [c.kind, c.value, c.key.id]), [['react', '👀', 'F1']]);
+  assert.deepEqual(t.labelled, [{ issue: 101, label: 'benny:triage-again' }]);
+  assert.equal(openStore(t.home).message('F1')?.status, 'done');
+});
+
+test('a follow-up whose comment response was lost is confirmed by the next poll without posting again', async () => {
+  const t = setup();
+  await askedForMore(t);
+  t.faults.commentLost = true;
+  await t.bridge.onMessage(quoting(dad('F1', 'detail'), t.replyIds[0]!));
+  t.faults.commentLost = false;
+  await t.restart().poll();
+  assert.equal(t.comments.length, 1);
+  assert.deepEqual(t.calls.map((c) => [c.kind, c.value, c.key.id]), [['react', '👀', 'F1']]);
+  assert.deepEqual(t.labelled, [{ issue: 101, label: 'benny:triage-again' }]);
+});
+
+test('a follow-up whose comment never reached GitHub is posted once when redelivered', async () => {
+  const t = setup();
+  await askedForMore(t);
+  t.faults.upload = true;
+  await t.bridge.onMessage(quoting(photo('F1', 'here'), t.replyIds[0]!));
+  t.faults.upload = false;
+  await t.restart().onMessage(quoting(photo('F1', 'here'), t.replyIds[0]!));
+  assert.equal(t.comments.length, 1);
+  assert.ok(t.comments[0]!.body.includes('<!-- wa-followup:F1 -->'));
 });
 
 test('a failed re-triage label is retried at the next poll, even after a restart, until GitHub accepts it', async () => {

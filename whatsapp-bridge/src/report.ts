@@ -13,6 +13,7 @@ export const scrub = (text: string) => text.replace(PHONE_LIKE, '[number removed
 const safeId = (id: string) => id.replace(/[^A-Za-z0-9_]/g, '');
 
 export const messageMarker = (messageId: string) => `<!-- wa-message:${safeId(messageId)} -->`;
+export const followupMarker = (messageId: string) => `<!-- wa-followup:${safeId(messageId)} -->`;
 export const photoPath = (messageId: string, mimetype: string) => `reports/${safeId(messageId)}.${EXTENSIONS[mimetype] ?? 'jpg'}`;
 export const photoMarkdown = (photo: Photo) => ('url' in photo ? `![photo](${photo.url})` : '(photo too large to attach)');
 
@@ -26,8 +27,8 @@ export function issueBody(text: string, messageId: string, photo?: Photo): strin
   ].filter(Boolean).join('\n\n');
 }
 
-export const followupBody = (text: string, photo?: Photo) =>
-  [scrub(text).trim(), photo && photoMarkdown(photo), '<!-- wa-followup -->'].filter(Boolean).join('\n\n');
+export const followupBody = (text: string, messageId: string, photo?: Photo) =>
+  [scrub(text).trim(), photo && photoMarkdown(photo), followupMarker(messageId)].filter(Boolean).join('\n\n');
 
 export const newIssue = (text: string, messageId: string, photo?: Photo) => ({
   title: issueTitle(text), body: issueBody(text, messageId, photo), labels: [REPORT_LABEL, TABLE.new.label!],

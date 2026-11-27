@@ -17,8 +17,10 @@ const entrySchema = z.object({
 export type Entry = z.infer<typeof entrySchema>;
 // pending: an issue may exist on GitHub for this message but the bridge has not confirmed it. done: nothing left to do.
 const messageSchema = z.discriminatedUnion('status', [
-  // missedAt: the first lookup since the last create attempt that found no issue.
-  z.object({ status: z.literal('pending'), key: keySchema, at: z.string(), missedAt: z.string().optional() }),
+  // missedAt: the first lookup since the last attempt that found nothing. followup: the issue a follow-up comment may be on.
+  z.object({
+    status: z.literal('pending'), key: keySchema, at: z.string(), missedAt: z.string().optional(), followup: z.number().int().positive().optional(),
+  }),
   z.object({ status: z.literal('done'), issue: z.number().int().positive().optional(), at: z.string() }),
 ]);
 export type Message = z.infer<typeof messageSchema>;

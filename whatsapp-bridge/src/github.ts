@@ -5,6 +5,7 @@ const createdSchema = z.object({ number: z.number().int().positive() });
 const listedSchema = z.array(z.object({
   number: z.number().int().positive(), body: z.string().nullish(), created_at: z.string(), pull_request: z.unknown().optional(),
 }));
+const commentsSchema = z.array(z.object({ body: z.string().nullish() }));
 const PAGE = 100;
 const issueSchema = z.object({
   number: z.number().int().positive(), state: z.enum(['open', 'closed']), state_reason: z.string().nullish(),
@@ -27,6 +28,7 @@ export type Github = {
   findByMarker(marker: string, since: Date): Promise<number | undefined>;
   upload(path: string, bytes: Buffer): Promise<string>;
   comment(issue: number, body: string): Promise<void>;
+  hasComment(issue: number, marker: string): Promise<boolean>;
   addLabel(issue: number, label: string): Promise<void>;
 };
 
@@ -60,6 +62,13 @@ export function createGithub(config: { token: string; repo: string }, request: t
       }
     },
     async comment(issue, body) { await call('POST', `/issues/${issue}/comments`, { body }); },
+    async hasComment(issue, marker) {
+      for (let page = 1; ; page++) {
+        const comments = commentsSchema.parse(await call('GET', `/issues/${issue}/comments?per_page=${PAGE}&page=${page}`));
+        if (comments.some((c) => c.body?.includes(marker))) return true;
+        if (comments.length < PAGE) return false;
+      }
+    },
     async addLabel(issue, label) { await call('POST', `/issues/${issue}/labels`, { labels: [label] }); },
     async upload(path, bytes) {
       try { await call('PUT', `/contents/${path}`, { message: 'Add WhatsApp photo', content: bytes.toString('base64'), branch: MEDIA_BRANCH }); }
