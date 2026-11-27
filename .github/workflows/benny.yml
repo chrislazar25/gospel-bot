@@ -337,7 +337,18 @@ jobs:
           existing=$(.github/benny/existing-fix.sh "$ISSUE")
           [[ -z "$existing" ]] || exit 0
           git push origin "HEAD:refs/heads/$BRANCH"
-          url=$(gh pr create --draft --base "$BASE" --head "$BRANCH" --title "$title" --body-file "$dir/pr.md")
+          if ! url=$(gh pr create --draft --base "$BASE" --head "$BRANCH" --title "$title" --body-file "$dir/pr.md"); then
+            # A rerun pushes a different branch, so this one would stay public with no draft. If the request
+            # failed after GitHub created the draft, the branch belongs to it, and a rerun picks that draft up.
+            if [[ "$(gh pr list --state all --head "$BRANCH" --json number --jq length)" == 0 ]]; then
+              if git push origin --delete "$BRANCH"; then
+                echo "::notice::Deleted $BRANCH because its draft pull request could not be created."
+              else
+                echo "::warning::Could not delete $BRANCH after its draft pull request failed. Delete it by hand."
+              fi
+            fi
+            blocked 'Benny pushed a branch but could not open the draft pull request.'
+          fi
           # A pull request opened with GITHUB_TOKEN starts no pull_request workflow, so start CI directly.
           gh workflow run ci.yml --ref "$BRANCH"
 
