@@ -240,11 +240,12 @@ jobs:
           git show "$GITHUB_SHA:.github/benny/scan-secrets.sh" > "$dir/scan-secrets.sh"
           git add -A
           git diff --cached --binary > "$dir/fix.patch"
-          # GitHub caps a job's outputs at 1 MB, counting two bytes a character, so 256 KB leaves room after Base64.
+          # The publish job reads the patch from one environment variable, and Linux caps one string at 128 KiB.
+          # A 64 KiB patch is about 86 KiB after Base64, so it stays well under that and under the 1 MB job output limit.
           if [[ ! -s "$dir/fix.patch" ]]; then
             echo 'withheld=Claude reported a fix but changed no files.' >> "$GITHUB_OUTPUT"
-          elif (( $(wc -c < "$dir/fix.patch") > 262144 )); then
-            echo 'withheld=The fix is larger than 256 KB, which is too big for a focused draft.' >> "$GITHUB_OUTPUT"
+          elif (( $(wc -c < "$dir/fix.patch") > 65536 )); then
+            echo 'withheld=The fix is larger than 64 KB, which is too big for a focused draft.' >> "$GITHUB_OUTPUT"
           elif ! bash "$dir/scan-secrets.sh"; then
             echo 'withheld=The fix looks like it contains a secret, so Benny did not hand it on.' >> "$GITHUB_OUTPUT"
           else
