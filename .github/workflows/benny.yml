@@ -340,7 +340,8 @@ jobs:
           if ! url=$(gh pr create --draft --base "$BASE" --head "$BRANCH" --title "$title" --body-file "$dir/pr.md"); then
             # A rerun pushes a different branch, so this one would stay public with no draft. If the request
             # failed after GitHub created the draft, the branch belongs to it, and a rerun picks that draft up.
-            if [[ "$(gh pr list --state all --head "$BRANCH" --json number --jq length)" == 0 ]]; then
+            if [[ "$(gh pr list --state all --head "$BRANCH" --limit 1000 --json isCrossRepository \
+              --jq '[.[] | select(.isCrossRepository == false)] | length')" == 0 ]]; then
               if git push origin --delete "$BRANCH"; then
                 echo "::notice::Deleted $BRANCH because its draft pull request could not be created."
               else
