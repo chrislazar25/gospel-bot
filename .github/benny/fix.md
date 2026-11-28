@@ -31,7 +31,7 @@ Identify the faulty behavior and add a regression case where possible. The workf
 
 - Content tools (`gospel_matcher.js`, `parse_gospel.js`, `scripts/`). Add a failing test to `tests/content.test.js`,.
 - A message file in `content/messages/`. The reproduction is the concrete mismatch: the file's text or citation next to the day's reading from `https://cpbjr.github.io/catholic-readings-api/readings/YYYY/MM-DD.json`, or next to the verse text from `https://bible.usccb.org/bible/<book>/<chapter>`. Record both in the pull request body.
-- Delivery code (`local-lab/src/`). Add a failing case to the closest `*.unit.test.ts` or to the lab journeys, and run `node local-lab/verify-runtime.mjs` or `node local-lab/verify.mjs all`. Both use Docker and take several minutes.
+- Delivery reports and send-path edits. Add `local-lab/benny-repros/<issue number>.mjs` using Node built-ins. The workflow will pass the isolated lab's state file as the first argument and run the same script against fresh labs on the original and proposed builds. Read `apps` and `fake` from that file and exercise the public HTTP routes and fake provider. Use synthetic fixtures. Print the precise expected and observed behavior. Exit 42 only when a valid lab response demonstrates the reported fault. Exit 0 when the intended behavior passes. Leave setup, network, and unexpected errors as ordinary failures. If the report depends on a production-only condition you cannot recreate locally, return blocked. Include the reproduction behavior and the evidence in the draft description.
 - The bridge (`whatsapp-bridge/src/`). Add a failing test beside the code.
 
 If you cannot reproduce the bug, the outcome is `blocked`. Say what you tried and what you saw.

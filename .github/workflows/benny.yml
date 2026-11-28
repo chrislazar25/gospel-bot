@@ -16,12 +16,14 @@ permissions: {}
 
 jobs:
   start:
-    # The repository is public. Only the owner's account files reports and asks for a re-triage.
+    # The repository is public. Only the owner can submit reports, rerun triage, or request a draft.
     if: >-
       github.event.issue.user.login == 'chrislazar25' &&
       github.event.sender.login == 'chrislazar25' &&
       contains(github.event.issue.labels.*.name, 'benny:report') &&
-      (github.event.action == 'opened' || github.event.label.name == 'benny:triage-again')
+      (github.event.action == 'opened' ||
+      github.event.label.name == 'benny:triage-again' ||
+      github.event.label.name == 'benny:draft-content')
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
@@ -36,11 +38,11 @@ jobs:
     steps:
       - name: Mark the report as in triage
         run: |
-          for label in benny:triage benny:bug benny:other benny:no-repro benny:fixing benny:pr benny:blocked benny:triage-again; do
+          for label in benny:triage benny:bug benny:other benny:no-repro benny:fixing benny:pr benny:blocked benny:triage-again benny:draft-content; do
             gh label create "$label" --color 5319E7 --description 'Benny WhatsApp report state' 2>/dev/null || true
           done
           gh issue edit "$ISSUE" \
-            --remove-label benny:triage-again,benny:bug,benny:other,benny:no-repro,benny:fixing,benny:blocked \
+            --remove-label benny:triage-again,benny:draft-content,benny:bug,benny:other,benny:no-repro,benny:fixing,benny:blocked \
             --add-label benny:triage
       - name: Mark the report as blocked
         if: failure() || cancelled()
@@ -105,7 +107,8 @@ jobs:
       GH_REPO: ${{ github.repository }}
       ISSUE: ${{ github.event.issue.number }}
     outputs:
-      fix: ${{ steps.start.outputs.fix }}
+      stage: ${{ steps.start.outputs.stage }}
+      delivery: ${{ steps.verdict.outputs.delivery }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
@@ -121,6 +124,7 @@ jobs:
           mkdir -p "$dir"
           printf '%s' "$VERDICT_B64" | base64 -d > "$dir/verdict.json"
           jq -e '(.verdict | IN("bug", "other", "no-repro")) and (.summary | type == "string" and length > 0)
+            and (.delivery | type == "boolean")
             and (.duplicate_of | type == "number" and . >= 0 and . == floor) and (.evidence | type == "string")' \
             "$dir/verdict.json" > /dev/null
           duplicate_of=$(jq -r '.duplicate_of' "$dir/verdict.json")
@@ -130,8 +134,11 @@ jobs:
             echo "::warning::#$duplicate_of is not another open report, so this report is not treated as a duplicate."
             duplicate_of=0
           fi
-          echo "verdict=$(jq -r '.verdict' "$dir/verdict.json")" >> "$GITHUB_OUTPUT"
-          echo "duplicate_of=$duplicate_of" >> "$GITHUB_OUTPUT"
+          {
+            echo "verdict=$(jq -r '.verdict' "$dir/verdict.json")"
+            echo "duplicate_of=$duplicate_of"
+            echo "delivery=$(jq -r '.delivery' "$dir/verdict.json")"
+          } >> "$GITHUB_OUTPUT"
       - name: Post the verdict
         if: steps.verdict.outputs.verdict != ''
         env:
@@ -143,12 +150,16 @@ jobs:
           gh issue edit "$ISSUE" --remove-label benny:triage --add-label "benny:$VERDICT"
       - name: Start the fix
         id: start
-        if: steps.verdict.outputs.verdict == 'bug' && steps.verdict.outputs.duplicate_of == '0'
+        if: >-
+          steps.verdict.outputs.duplicate_of == '0' &&
+          (steps.verdict.outputs.verdict == 'bug' || github.event.label.name == 'benny:draft-content')
+        env:
+          REQUESTED_STAGE: ${{ github.event.label.name == 'benny:draft-content' && 'editorial' || 'fix' }}
         run: |
           existing=$(.github/benny/existing-fix.sh "$ISSUE")
           [[ -z "$existing" ]] || exit 0
           gh issue edit "$ISSUE" --add-label benny:fixing
-          echo "fix=true" >> "$GITHUB_OUTPUT"
+          echo "stage=$REQUESTED_STAGE" >> "$GITHUB_OUTPUT"
       - name: Mark the report as blocked
         if: failure() || cancelled() || needs.triage.result != 'success'
         env:
@@ -160,7 +171,7 @@ jobs:
 
   fix:
     needs: record
-    if: needs.record.outputs.fix == 'true'
+    if: needs.record.outputs.stage != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     concurrency:
@@ -171,6 +182,7 @@ jobs:
       issues: read
     env:
       ISSUE: ${{ github.event.issue.number }}
+      BENNY_STAGE: ${{ needs.record.outputs.stage }}
     outputs:
       outcome: ${{ steps.package.outputs.outcome }}
       patch: ${{ steps.package.outputs.patch }}
@@ -189,17 +201,36 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           git switch -c "benny/issue-$ISSUE"
-          .github/benny/context.sh "$ISSUE" "$RUNNER_TEMP/benny" fix
-          npm ci --prefix local-lab
+          if [[ "$BENNY_STAGE" == fix ]]; then
+            .github/benny/context.sh "$ISSUE" "$RUNNER_TEMP/benny" fix
+            npm ci --prefix local-lab
+          else
+            .github/benny/context.sh "$ISSUE" "$RUNNER_TEMP/benny"
+          fi
       - name: Install OpenCode
         run: bash .github/benny/install-opencode.sh
       - name: Fix
         timeout-minutes: 75
         env:
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-        run: bash .github/benny/run-opencode.sh fix
+        run: bash .github/benny/run-opencode.sh "$BENNY_STAGE"
+      - name: Check the editorial patch
+        if: needs.record.outputs.stage == 'editorial'
+        run: |
+          if [[ "$(jq -r .outcome "$RUNNER_TEMP/benny/fix-result.json")" == pr ]]; then
+            git add -A
+            bash .github/benny/check-editorial-patch.sh
+          elif [[ -n "$(git status --porcelain)" ]]; then
+            echo 'A blocked editorial draft must leave the working tree clean.' >&2
+            exit 1
+          fi
       - name: Verify the proposed fix
         run: bash .github/benny/verify-fix.sh
+      - name: Verify delivery reproduction
+        if: needs.record.outputs.stage == 'fix'
+        env:
+          DELIVERY_REPRO: ${{ needs.record.outputs.delivery }}
+        run: bash .github/benny/verify-delivery.sh
       # An artifact on a public repository is downloadable by anyone, so the fix travels as job outputs.
       # A consuming step prints its env in the public log, so the patch leaves only after a secret scan.
       - name: Package the fix
@@ -227,7 +258,7 @@ jobs:
 
   publish:
     needs: [record, fix]
-    if: always() && needs.record.outputs.fix == 'true'
+    if: always() && needs.record.outputs.stage != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
@@ -271,6 +302,7 @@ jobs:
       - name: Open the draft pull request
         if: steps.outcome.outputs.outcome == 'pr'
         env:
+          BENNY_STAGE: ${{ needs.record.outputs.stage }}
           BASE: ${{ github.event.repository.default_branch }}
           PATCH_B64: ${{ needs.fix.outputs.patch }}
           WITHHELD: ${{ needs.fix.outputs.withheld }}
@@ -281,6 +313,9 @@ jobs:
           [[ -n "$PATCH_B64" ]] || blocked 'The fix did not reach this job. GitHub withholds a job output that may contain a secret.'
           printf '%s' "$PATCH_B64" | base64 -d > "$dir/fix.patch"
           git apply --index "$dir/fix.patch" || blocked 'The fix does not apply to the commit it was made on.'
+          if [[ "$BENNY_STAGE" == editorial ]]; then
+            bash .github/benny/check-editorial-patch.sh || blocked 'The editorial patch changes files outside its scope.'
+          fi
           protected='^(infra|\.github|\.opencode|scripts/cloud|local-lab/migrations)/|(^|/)\.env|\.(tfvars|tfstate|pem|key)$'
           changed=() forbidden=()
           # Git quotes an unusual name unless -z is given, and a quoted name would slip past the pattern.
@@ -325,7 +360,9 @@ jobs:
           # A pull request opened with GITHUB_TOKEN starts no pull_request workflow, so start CI directly.
           gh workflow run ci.yml --ref "$BRANCH"
 
-          jq -r --arg url "$url" '"<!-- benny:pr -->", "Draft fix: \($url)", "", .reason | gsub("@"; "@​")' \
+          label='Draft fix'
+          if [[ "$BENNY_STAGE" == editorial ]]; then label='Draft content change'; fi
+          jq -r --arg url "$url" --arg label "$label" '"<!-- benny:pr -->", "\($label): \($url)", "", .reason | gsub("@"; "@​")' \
             "$dir/outcome.json" | gh issue comment "$ISSUE" --body-file -
           gh issue edit "$ISSUE" --remove-label benny:fixing --add-label benny:pr
       - name: Report why the fix stopped

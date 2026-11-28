@@ -6,14 +6,17 @@ stage="$1"
 dir="$RUNNER_TEMP/benny"
 case "$stage" in
   triage)
-    fields='{"verdict":"bug|other|no-repro","summary":"...","duplicate_of":0,"evidence":"..."}'
-    schema='keys == ["duplicate_of","evidence","summary","verdict"]
+    result="$dir/triage-result.json"
+    fields='{"verdict":"bug|other|no-repro","summary":"...","duplicate_of":0,"delivery":false,"evidence":"..."}'
+    schema='keys == ["delivery","duplicate_of","evidence","summary","verdict"]
       and (.verdict | IN("bug","other","no-repro"))
+      and (.delivery | type == "boolean")
       and (.summary | type == "string" and length > 0)
       and (.evidence | type == "string")
       and (.duplicate_of | type == "number" and . >= 0 and . == floor)'
     ;;
-  fix)
+  fix|editorial)
+    result="$dir/fix-result.json"
     fields='{"outcome":"pr|blocked","reason":"...","commit_message":"...","pr_title":"...","pr_body":"..."}'
     schema='keys == ["commit_message","outcome","pr_body","pr_title","reason"]
       and (.outcome | IN("pr","blocked"))
@@ -41,6 +44,9 @@ OPENCODE_CONFIG_CONTENT=$(jq -cn --arg stage "$stage" '{
        {action:"edit", resource:".git/**", effect:"deny"},
        {action:"edit", resource:".github/**", effect:"deny"},
        {action:"edit", resource:".opencode/**", effect:"deny"}]
+      elif $stage == "editorial" then
+      [{action:"edit", resource:"content/messages/*.txt", effect:"allow"},
+       {action:"webfetch", resource:"https://www.biblegateway.com/passage/*", effect:"allow"}]
       else [] end))
   }}
 }')
@@ -76,18 +82,18 @@ if ! jq -cse '
        | select($lines[$i] | test("^\\s*\\{"))
        | try ($lines[$i:] | join("\n") | fromjson) catch empty]
     | if length == 1 then .[0] else error("expected one final JSON object") end
-  end' "$dir/$stage.ndjson" > "$dir/$stage-result.json" 2>/dev/null ||
-  ! jq -e "$schema" "$dir/$stage-result.json" > /dev/null 2>&1; then
+  end' "$dir/$stage.ndjson" > "$result" 2>/dev/null ||
+  ! jq -e "$schema" "$result" > /dev/null 2>&1; then
   echo "::error::OpenCode did not return a valid Benny $stage result."
   exit 1
 fi
 
-if (( $(wc -c < "$dir/$stage-result.json") > 16384 )); then
+if (( $(wc -c < "$result") > 16384 )); then
   echo "::error::Benny's structured result exceeded 16 KiB."
   exit 1
 fi
 
-if jq -e --arg key "$OLLAMA_API_KEY" 'any(.. | strings; contains($key))'   "$dir/$stage-result.json" >/dev/null; then
+if jq -e --arg key "$OLLAMA_API_KEY" 'any(.. | strings; contains($key))'   "$result" >/dev/null; then
   echo "::error::Benny withheld a result that contained its provider credential."
   exit 1
 fi

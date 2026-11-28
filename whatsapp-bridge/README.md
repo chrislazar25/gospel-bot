@@ -18,6 +18,10 @@ Each status reply gets a message id derived from the issue, the state and the nu
 
 States, labels, emojis and replies live in one table in `src/states.ts`. Every bot reply starts with "🤖 ".
 
+To request a content draft, Chris adds `benny:draft-content` to a Benny issue that names a future IST date and supplies the replacement wording. The Benny workflow removes the request label and, if it verifies the quotation and date, opens a draft PR for the single dated message file. The first Benny run creates the label. The draft goes through normal content review and release.
+
+For a delivery bug, Benny must provide a scenario that demonstrates the reported fault on the original build and passes on the proposed build. The workflow runs the scenario against fresh local labs with the fake provider before publishing a draft. Cases requiring evidence from production remain blocked until a person can provide a reproducible case.
+
 Phone-like numbers are removed from issue titles, bodies and comments, including numbers written with non-breaking spaces, Unicode dashes or fullwidth digits, and numbers with invisible format characters such as direction marks, isolates, a byte order mark or a soft hyphen between the digits. The sender's WhatsApp ID stays in `$BRIDGE_HOME/reports.json` and never goes to GitHub.
 
 ## Environment variables
