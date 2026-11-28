@@ -73,7 +73,7 @@ When the line between `bug` and `other` is unclear, choose `other` and say what 
 
 ## 5. Write the result
 
-Return the structured output the workflow asks for.
+Return the structured output the workflow asks for. Set `delivery` to true for an observed or alleged problem with a send, timing, duplicate, recipient, or receipt. Set it to false for a content-only correction or selection, including a proposal for a future message.
 
 `summary` is for Chris, and it appears at the top of the issue. Write two or three short sentences in plain English. Say what the reporter saw, what you found, and what happens next. Use no jargon, no file paths and no code. If production state decides the answer, say so plainly. If this is a duplicate, name the earlier report as `#<number>`.
 
